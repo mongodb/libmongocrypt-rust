@@ -7,7 +7,7 @@ license = "Apache-2.0"
 authors = [
      "Abraham Egnor <abraham.egnor@mongodb.com>",
 ]
-keywords = ["mongo", "mongodb", "database", "bson", "nosql"]
+keywords = ["mongo", "mongodb", "database", "mongocrypt", "libmongocrypt"]
 categories = ["database", "cryptography", "external-ffi-bindings"]
 repository = "https://github.com/mongodb/libmongocrypt-rust"
 links = "mongocrypt"
