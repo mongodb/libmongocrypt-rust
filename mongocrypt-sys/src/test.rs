@@ -89,11 +89,11 @@ fn crypt_setopt() {
         mongocrypt_binary_destroy(doc_bin);
         drop(doc_bytes);  // enforce lifespan longer than `doc_bin`
 
-        mongocrypt_setopt_append_csfle_search_path(
+        mongocrypt_setopt_append_crypt_shared_lib_search_path(
             crypt,
             cs(b"$SYSTEM\0").as_ptr(),
         );
-        mongocrypt_setopt_set_csfle_lib_path_override(
+        mongocrypt_setopt_set_crypt_shared_lib_path_override(
             crypt,
             cs(b"$ORIGIN\0").as_ptr(),
         );
@@ -130,14 +130,14 @@ fn crypt_lifecycle() {
 }
 
 #[test]
-fn crypt_csfle_version() {
+fn crypt_shared_lib_version() {
     unsafe {
         let crypt = mongocrypt_new();
         crypt_stub_setopt(crypt);
         assert!(mongocrypt_init(crypt));
 
-        assert_eq!(ptr::null(), mongocrypt_csfle_version_string(crypt, ptr::null_mut()));
-        assert_eq!(0, mongocrypt_csfle_version(crypt));
+        assert_eq!(ptr::null(), mongocrypt_crypt_shared_lib_version_string(crypt, ptr::null_mut()));
+        assert_eq!(0, mongocrypt_crypt_shared_lib_version(crypt));
 
         mongocrypt_destroy(crypt);
     }

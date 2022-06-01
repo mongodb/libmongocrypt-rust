@@ -353,9 +353,9 @@ extern "C" {
     #[doc = " then the system's library-search mechanism will never be consulted."]
     #[doc = ""]
     #[doc = " @note If an absolute path to the library is specified using"]
-    #[doc = " @ref mongocrypt_setopt_set_csfle_lib_path_override, then paths appended here"]
-    #[doc = " will have no effect."]
-    pub fn mongocrypt_setopt_append_csfle_search_path(
+    #[doc = " @ref mongocrypt_setopt_set_crypt_shared_lib_path_override, then paths"]
+    #[doc = " appended here will have no effect."]
+    pub fn mongocrypt_setopt_append_crypt_shared_lib_search_path(
         crypt: *mut mongocrypt_t,
         path: *const ::std::os::raw::c_char,
     );
@@ -375,13 +375,13 @@ extern "C" {
     #[doc = " occur during the call to @ref mongocrypt_init."]
     #[doc = ""]
     #[doc = " @note If a CSFLE library path override is specified here, then no paths given"]
-    #[doc = " to @ref mongocrypt_setopt_append_csfle_search_path will be consulted when"]
-    #[doc = " opening the CSFLE library."]
+    #[doc = " to @ref mongocrypt_setopt_append_crypt_shared_lib_search_path will be"]
+    #[doc = " consulted when opening the CSFLE library."]
     #[doc = ""]
     #[doc = " @note If a path is provided via this API and @ref mongocrypt_init fails to"]
     #[doc = " initialize a valid CSFLE library instance for the path specified, then"]
     #[doc = " the initialization of mongocrypt_t will fail with an error."]
-    pub fn mongocrypt_setopt_set_csfle_lib_path_override(
+    pub fn mongocrypt_setopt_set_crypt_shared_lib_path_override(
         crypt: *mut mongocrypt_t,
         path: *const ::std::os::raw::c_char,
     );
@@ -446,8 +446,8 @@ extern "C" {
     #[doc = " @return A nul-terminated string of the dynamically loaded csfle library."]
     #[doc = ""]
     #[doc = " @note For a numeric value that can be compared against, use"]
-    #[doc = " @ref mongocrypt_csfle_version."]
-    pub fn mongocrypt_csfle_version_string(
+    #[doc = " @ref mongocrypt_crypt_shared_lib_version."]
+    pub fn mongocrypt_crypt_shared_lib_version_string(
         crypt: *const mongocrypt_t,
         len: *mut u32,
     ) -> *const ::std::os::raw::c_char;
@@ -470,7 +470,7 @@ extern "C" {
     #[doc = " - Reserved"]
     #[doc = ""]
     #[doc = " For example, version 6.2.1 would be encoded as: 0x0006'0002'0001'0000"]
-    pub fn mongocrypt_csfle_version(crypt: *const mongocrypt_t) -> u64;
+    pub fn mongocrypt_crypt_shared_lib_version(crypt: *const mongocrypt_t) -> u64;
 }
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
