@@ -6,9 +6,7 @@ use super::*;
 
 #[test]
 fn version_is_utf8() {
-    let c_version = unsafe {
-        CStr::from_ptr(mongocrypt_version(ptr::null_mut()))
-    };
+    let c_version = unsafe { CStr::from_ptr(mongocrypt_version(ptr::null_mut())) };
     let version = c_version.to_str();
     assert!(version.is_ok(), "{}", version.unwrap_err());
 }
@@ -48,16 +46,13 @@ fn status_roundtrip() {
             mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
             42,
             message.as_ptr(),
-            -1
+            -1,
         );
         assert_eq!(
             mongocrypt_status_type(status),
             mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
         );
-        assert_eq!(
-            mongocrypt_status_code(status),
-            42,
-        );
+        assert_eq!(mongocrypt_status_code(status), 42,);
         assert_eq!(
             CStr::from_ptr(mongocrypt_status_message(status, ptr::null_mut())),
             message,
@@ -75,28 +70,28 @@ fn crypt_setopt() {
             _level: mongocrypt_log_level_t,
             _message: *const ::std::os::raw::c_char,
             _message_len: u32,
-            _ctx: *mut ::std::os::raw::c_void,        
-        ) {}
-        assert!(mongocrypt_setopt_log_handler(crypt, Some(log_cb), ptr::null_mut()));
+            _ctx: *mut ::std::os::raw::c_void,
+        ) {
+        }
+        assert!(mongocrypt_setopt_log_handler(
+            crypt,
+            Some(log_cb),
+            ptr::null_mut()
+        ));
 
         let mut doc_bytes = bson::rawdoc! {}.into_bytes();
-        let doc_bin = mongocrypt_binary_new_from_data(doc_bytes.as_mut_ptr(), doc_bytes.len() as u32);
+        let doc_bin =
+            mongocrypt_binary_new_from_data(doc_bytes.as_mut_ptr(), doc_bytes.len() as u32);
 
         assert!(mongocrypt_setopt_kms_providers(crypt, doc_bin));
         assert!(mongocrypt_setopt_schema_map(crypt, doc_bin));
         assert!(mongocrypt_setopt_encrypted_field_config_map(crypt, doc_bin));
 
         mongocrypt_binary_destroy(doc_bin);
-        drop(doc_bytes);  // enforce lifespan longer than `doc_bin`
+        drop(doc_bytes); // enforce lifespan longer than `doc_bin`
 
-        mongocrypt_setopt_append_crypt_shared_lib_search_path(
-            crypt,
-            cs(b"$SYSTEM\0").as_ptr(),
-        );
-        mongocrypt_setopt_set_crypt_shared_lib_path_override(
-            crypt,
-            cs(b"$ORIGIN\0").as_ptr(),
-        );
+        mongocrypt_setopt_append_crypt_shared_lib_search_path(crypt, cs(b"$SYSTEM\0").as_ptr());
+        mongocrypt_setopt_set_crypt_shared_lib_path_override(crypt, cs(b"$ORIGIN\0").as_ptr());
         mongocrypt_setopt_use_need_kms_credentials_state(crypt);
 
         mongocrypt_destroy(crypt);
@@ -136,7 +131,10 @@ fn crypt_shared_lib_version() {
         crypt_stub_setopt(crypt);
         assert!(mongocrypt_init(crypt));
 
-        assert_eq!(ptr::null(), mongocrypt_crypt_shared_lib_version_string(crypt, ptr::null_mut()));
+        assert_eq!(
+            ptr::null(),
+            mongocrypt_crypt_shared_lib_version_string(crypt, ptr::null_mut())
+        );
         assert_eq!(0, mongocrypt_crypt_shared_lib_version(crypt));
 
         mongocrypt_destroy(crypt);
