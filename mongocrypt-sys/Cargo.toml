@@ -1,6 +1,6 @@
 [package]
 name = "libmongocrypt-sys"
-description = "Low-level wrapper for libmongocrypt"
+description = "FFI bindings to libmongocrypt"
 version = "0.1.0"
 edition = "2021"
 license = "Apache-2.0"
@@ -8,7 +8,7 @@ authors = [
      "Abraham Egnor <abraham.egnor@mongodb.com>",
 ]
 keywords = ["mongo", "mongodb", "database", "bson", "nosql"]
-categories = ["asynchronous", "database", "web-programming"]
+categories = ["database", "cryptography", "external-ffi-bindings"]
 repository = "https://github.com/mongodb/libmongocrypt-rust"
 links = "mongocrypt"
 
