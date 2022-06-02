@@ -1,0 +1,16 @@
+[package]
+name = "mongocrypt"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+authors = [
+     "Abraham Egnor <abraham.egnor@mongodb.com>",
+]
+keywords = ["mongo", "mongodb", "database", "mongocrypt", "libmongocrypt"]
+categories = ["database", "cryptography", "api-bindings"]
+repository = "https://github.com/mongodb/libmongocrypt-rust"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+mongocrypt-sys = { path = "../mongocrypt-sys" }
