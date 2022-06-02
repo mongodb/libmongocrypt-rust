@@ -211,17 +211,22 @@ fn cs(bytes: &'static [u8]) -> *const i8 {
     CStr::from_bytes_with_nul(bytes).unwrap().as_ptr()
 }
 
-#[test]
-fn run() {
-    unsafe {
-        let crypt = mongocrypt_new();
-        mongocrypt_setopt_kms_provider_aws(crypt, cs(b"example\0"), -1, cs(b"example\0"), -1);
-        mongocrypt_setopt_log_handler(crypt, Some(log_to_stderr), ptr::null_mut());
-        if !mongocrypt_init(crypt) {
-            panic!("failed to initialize");
-        }
+unsafe fn init_test_crypt() -> *mut mongocrypt_t {
+    let crypt = mongocrypt_new();
+    mongocrypt_setopt_kms_provider_aws(crypt, cs(b"example\0"), -1, cs(b"example\0"), -1);
+    mongocrypt_setopt_log_handler(crypt, Some(log_to_stderr), ptr::null_mut());
+    if !mongocrypt_init(crypt) {
+        panic!("failed to initialize");
+    }
+    crypt
+}
 
-        println!("******* ENCRYPTION *******");
+#[test]
+fn encryption_decryption() {
+    unsafe {
+        let crypt = init_test_crypt();
+
+        // Encryption
         let ctx = mongocrypt_ctx_new(crypt);
         let msg = BinaryBuffer::read_json_as_bson("src/test/testdata/cmd.json");
         mongocrypt_ctx_encrypt_init(ctx, cs(b"test\0"), -1, msg.binary);
@@ -229,7 +234,7 @@ fn run() {
         let result = run_state_machine(ctx);
         mongocrypt_ctx_destroy(ctx);
 
-        println!("******* DECRYPTION *******");
+        // Decryption
         let ctx = mongocrypt_ctx_new(crypt);
         let mut input_bytes = vec![];
         result.to_writer(&mut input_bytes).unwrap();
@@ -239,7 +244,16 @@ fn run() {
         run_state_machine(ctx);
         mongocrypt_ctx_destroy(ctx);
 
-        println!("******* EXPLICIT ENCRYPTION *******");
+        mongocrypt_destroy(crypt);
+    }
+}
+
+#[test]
+fn explicit_encryption_decryption() {
+    unsafe {
+        let crypt = init_test_crypt();
+
+        // Encryption
         let ctx = mongocrypt_ctx_new(crypt);
         let mut key_doc = load_doc_from_json("src/test/testdata/key-document.json");
         let key_bytes = match key_doc.get_mut("_id").unwrap() {
@@ -259,7 +273,7 @@ fn run() {
         let result = run_state_machine(ctx);
         mongocrypt_ctx_destroy(ctx);
 
-        println!("******* EXPLICIT DECRYPTION *******");
+        // Decryption
         let ctx = mongocrypt_ctx_new(crypt);
         let mut input_bytes = vec![];
         result.to_writer(&mut input_bytes).unwrap();
