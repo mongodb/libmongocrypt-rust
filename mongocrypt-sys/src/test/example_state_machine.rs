@@ -89,9 +89,9 @@ impl Drop for BinaryBuffer {
 unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
     let mut result = Document::new();
     loop {
-        let state = mongocrypt_ctx_state(ctx);
-        match () {
-            _ if state == mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO => {
+        #[allow(non_upper_case_globals)]
+        match mongocrypt_ctx_state(ctx) {
+            mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO => {
                 let output = mongocrypt_binary_new();
                 assert!(mongocrypt_ctx_mongo_op(ctx, output));
                 println!(
@@ -108,7 +108,7 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                 assert!(mongocrypt_ctx_mongo_feed(ctx, input.binary));
                 assert!(mongocrypt_ctx_mongo_done(ctx));
             }
-            _ if state == mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_MARKINGS => {
+            mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_MARKINGS => {
                 let output = mongocrypt_binary_new();
                 assert!(mongocrypt_ctx_mongo_op(ctx, output));
                 println!(
@@ -125,7 +125,7 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                 assert!(mongocrypt_ctx_mongo_feed(ctx, input.binary));
                 assert!(mongocrypt_ctx_mongo_done(ctx));
             }
-            _ if state == mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_KEYS => {
+            mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_KEYS => {
                 let output = mongocrypt_binary_new();
                 assert!(mongocrypt_ctx_mongo_op(ctx, output));
                 println!(
@@ -141,7 +141,7 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                 assert!(mongocrypt_ctx_mongo_feed(ctx, input.binary));
                 assert!(mongocrypt_ctx_mongo_done(ctx));
             }
-            _ if state == mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS => {
+            mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS => {
                 loop {
                     let kms = mongocrypt_ctx_next_kms_ctx(ctx);
                     if kms == ptr::null_mut() {
@@ -166,16 +166,16 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                 }
                 mongocrypt_ctx_kms_done(ctx);
             }
-            _ if state == mongocrypt_ctx_state_t_MONGOCRYPT_CTX_READY => {
+            mongocrypt_ctx_state_t_MONGOCRYPT_CTX_READY => {
                 let output = mongocrypt_binary_new();
                 assert!(mongocrypt_ctx_finalize(ctx, output));
                 result = doc_from_binary(output);
                 mongocrypt_binary_destroy(output);
             }
-            _ if state == mongocrypt_ctx_state_t_MONGOCRYPT_CTX_DONE => {
+            mongocrypt_ctx_state_t_MONGOCRYPT_CTX_DONE => {
                 break;
             }
-            _ if state == mongocrypt_ctx_state_t_MONGOCRYPT_CTX_ERROR => {
+            mongocrypt_ctx_state_t_MONGOCRYPT_CTX_ERROR => {
                 let status = mongocrypt_status_new();
                 mongocrypt_ctx_status(ctx, status);
                 let message = CStr::from_ptr(mongocrypt_status_message(status, ptr::null_mut()))
@@ -183,7 +183,7 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                     .unwrap();
                 panic!("got error: {}", message);
             }
-            _ => panic!("unhandled state {:?}", state),
+            state => panic!("unhandled state {:?}", state),
         }
     }
 
@@ -196,12 +196,12 @@ unsafe extern "C" fn log_to_stderr(
     _message_len: u32,
     _ctx: *mut ::std::os::raw::c_void,
 ) {
-    let level_str = match () {
-        _ if level == mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_FATAL => "FATAL",
-        _ if level == mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_ERROR => "ERROR",
-        _ if level == mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_WARNING => "WARNING",
-        _ if level == mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_INFO => "INFO",
-        _ if level == mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_TRACE => "TRACE",
+    #[allow(non_upper_case_globals)]
+    let level_str = match level {
+        mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_ERROR => "ERROR",
+        mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_WARNING => "WARNING",
+        mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_INFO => "INFO",
+        mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_TRACE => "TRACE",
         _ => "UNKNOWN",
     };
     eprintln!("{}{}", level_str, CStr::from_ptr(message).to_str().unwrap());
