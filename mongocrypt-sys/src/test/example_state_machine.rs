@@ -180,7 +180,9 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                 mongocrypt_ctx_status(ctx, status);
                 let message = CStr::from_ptr(mongocrypt_status_message(status, ptr::null_mut()))
                     .to_str()
-                    .unwrap();
+                    .unwrap()
+                    .to_string();
+                mongocrypt_status_destroy(status);
                 panic!("got error: {}", message);
             }
             state => panic!("unhandled state {:?}", state),
