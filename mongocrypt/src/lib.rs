@@ -82,18 +82,49 @@ impl MongoCryptBuilder {
         let handler_ptr = &*handler as *const Box<LogCb> as *mut std::ffi::c_void;
         let ok = unsafe { sys::mongocrypt_setopt_log_handler(self.inner, Some(log_shim), handler_ptr) };
         if !ok {
-            let status = error::Status::new();
-            unsafe { sys::mongocrypt_status(self.inner, status.inner()) };
-            return status.as_error();
+            return self.status_error();
         }
         
         // Now that the handler's successfully set, store it so it gets dealloced on drop.
         self.log_handler = Some(handler);
         Ok(self)
     }
+
+    pub fn build(mut self) -> Result<MongoCrypt> {
+        let ok = unsafe { sys::mongocrypt_init(self.inner) };
+        if !ok {
+            return self.status_error();
+        }
+        let out = MongoCrypt {
+            inner: self.inner,
+            _log_handler: self.log_handler.take(),
+        };
+        self.inner = ptr::null_mut();
+        Ok(out)
+    }
+
+    fn status_error<T>(&mut self) -> Result<T> {
+        let status = error::Status::new();
+        unsafe { sys::mongocrypt_status(self.inner, status.inner()) };
+        status.as_error()
+    }
 }
 
 impl Drop for MongoCryptBuilder {
+    fn drop(&mut self) {
+        if self.inner != ptr::null_mut() {
+            unsafe { sys::mongocrypt_destroy(self.inner); }
+        }
+    }
+}
+
+pub struct MongoCrypt {
+    inner: *mut sys::mongocrypt_t,
+    // Double-boxing is required because the inner `Box<dyn ..>` is represented as a fat pointer; the outer one is a thin pointer convertible to *c_void.
+    _log_handler: Option<Box<LogCb>>,
+}
+
+impl Drop for MongoCrypt {
     fn drop(&mut self) {
         if self.inner != ptr::null_mut() {
             unsafe { sys::mongocrypt_destroy(self.inner); }
