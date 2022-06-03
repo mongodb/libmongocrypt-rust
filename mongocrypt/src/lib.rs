@@ -1,7 +1,6 @@
-#![allow(non_upper_case_globals)]
-
 use std::{ffi::CStr, ptr};
 
+use binary::BinaryRef;
 use mongocrypt_sys as sys;
 
 mod binary;
@@ -100,6 +99,20 @@ impl MongoCryptBuilder {
                 key_bytes.len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?,
                 secret_bytes.as_ptr() as *const i8,
                 secret_bytes.len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?,
+            )
+        };
+        if !ok {
+            return self.status_error();
+        }
+        Ok(self)
+    }
+
+    pub fn kms_provider_local(&mut self, key: &[u8]) -> Result<&mut Self> {
+        let bin = BinaryRef::new(key);
+        let ok = unsafe {
+            sys::mongocrypt_setopt_kms_provider_local(
+                self.inner,
+                bin.inner(),
             )
         };
         if !ok {

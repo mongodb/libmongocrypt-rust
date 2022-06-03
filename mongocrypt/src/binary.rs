@@ -1,37 +1,36 @@
-#![allow(dead_code)]
-
 use std::ptr;
 
-use mongocrypt_sys::{mongocrypt_binary_t, mongocrypt_binary_new_from_data, mongocrypt_binary_destroy, mongocrypt_binary_data, mongocrypt_binary_len};
+use mongocrypt_sys as sys;
 
 pub(crate) struct Binary {
     bytes: Option<Vec<u8>>,
-    binary: *mut mongocrypt_binary_t,
+    inner: *mut sys::mongocrypt_binary_t,
 }
 
+#[allow(dead_code)]
 impl Binary {
     pub(crate) fn new(mut bytes: Vec<u8>) -> Self {
         let binary = unsafe {
             let ptr = bytes.as_mut_ptr() as *mut u8;
-            mongocrypt_binary_new_from_data(ptr, bytes.len() as u32)
+            sys::mongocrypt_binary_new_from_data(ptr, bytes.len() as u32)
         };
-        Self { bytes: Some(bytes), binary }
+        Self { bytes: Some(bytes), inner: binary }
     }
 
-    pub(crate) fn native(binary: *mut mongocrypt_binary_t) -> Self {
+    pub(crate) fn native(binary: *mut sys::mongocrypt_binary_t) -> Self {
         assert!(binary != ptr::null_mut());
-        Self { bytes: None, binary }
+        Self { bytes: None, inner: binary }
     }
 
-    pub(crate) fn binary(&self) -> *mut mongocrypt_binary_t {
-        self.binary
+    pub(crate) fn inner(&self) -> *mut sys::mongocrypt_binary_t {
+        self.inner
     }
 }
 
 impl Drop for Binary {
     fn drop(&mut self) {
         unsafe {
-            mongocrypt_binary_destroy(self.binary);
+            sys::mongocrypt_binary_destroy(self.inner);
         }
     }
 }
@@ -43,8 +42,8 @@ impl std::ops::Deref for Binary {
             return &bytes;
         }
         unsafe {
-            let data = mongocrypt_binary_data(self.binary);
-            let len = mongocrypt_binary_len(self.binary);
+            let data = sys::mongocrypt_binary_data(self.inner);
+            let len = sys::mongocrypt_binary_len(self.inner);
             std::slice::from_raw_parts(data, len as usize)
         }
     }
@@ -52,25 +51,25 @@ impl std::ops::Deref for Binary {
 
 pub(crate) struct BinaryRef<'a> {
     _data: &'a [u8],
-    binary: *mut mongocrypt_binary_t,
+    inner: *mut sys::mongocrypt_binary_t,
 }
 
 impl<'a> BinaryRef<'a> {
     pub(crate) fn new(data: &'a [u8]) -> Self {
         let data_ptr = data.as_ptr() as *mut u8;
-        let binary = unsafe { mongocrypt_binary_new_from_data(data_ptr, data.len() as u32) };
-        Self { _data: data, binary }
+        let inner = unsafe { sys::mongocrypt_binary_new_from_data(data_ptr, data.len() as u32) };
+        Self { _data: data, inner }
     }
 
-    pub(crate) fn binary(&self) -> *mut mongocrypt_binary_t {
-        self.binary
+    pub(crate) fn inner(&self) -> *mut sys::mongocrypt_binary_t {
+        self.inner
     }
 }
 
 impl<'a> Drop for BinaryRef<'a> {
     fn drop(&mut self) {
         unsafe {
-            mongocrypt_binary_destroy(self.binary);
+            sys::mongocrypt_binary_destroy(self.inner);
         }
     }
 }

@@ -1,9 +1,6 @@
-#![allow(non_upper_case_globals)]
-#![allow(dead_code)]
-
 use std::{fmt::Display, ffi::CStr, ptr};
 
-use mongocrypt_sys::{mongocrypt_status_destroy, mongocrypt_status_new, mongocrypt_status_t, mongocrypt_status_type, mongocrypt_status_type_t_MONGOCRYPT_STATUS_OK, mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT, mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS, mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE, mongocrypt_status_code, mongocrypt_status_message};
+use mongocrypt_sys as sys;
 
 #[derive(Debug)]
 pub struct Error {
@@ -48,33 +45,35 @@ pub(crate) use internal;
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) struct Status {
-    inner: *mut mongocrypt_status_t,
+    inner: *mut sys::mongocrypt_status_t,
 }
 
 impl Status {
     pub(crate) fn new() -> Self {
-        Self { inner: unsafe { mongocrypt_status_new() } }
+        Self { inner: unsafe { sys::mongocrypt_status_new() } }
     }
 
-    pub(crate) fn from_native(inner: *mut mongocrypt_status_t) -> Self {
+    #[allow(dead_code)]
+    pub(crate) fn from_native(inner: *mut sys::mongocrypt_status_t) -> Self {
         Self { inner }
     }
 
-    pub(crate) fn inner(&self) -> *mut mongocrypt_status_t {
+    pub(crate) fn inner(&self) -> *mut sys::mongocrypt_status_t {
         self.inner
     }
 
     pub(crate) fn check(&self) -> Result<()> {
-        let typ = unsafe { mongocrypt_status_type(self.inner) };
+        let typ = unsafe { sys::mongocrypt_status_type(self.inner) };
+        #[allow(non_upper_case_globals)]
         let kind = match typ {
-            mongocrypt_status_type_t_MONGOCRYPT_STATUS_OK => return Ok(()),
-            mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT => ErrorKind::Client,
-            mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS => ErrorKind::Kms,
-            mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE => ErrorKind::CsFle,
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_OK => return Ok(()),
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT => ErrorKind::Client,
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS => ErrorKind::Kms,
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE => ErrorKind::CsFle,
             _ => return Err(internal!("unhandled status type {}", typ)),
         };
-        let code = unsafe { mongocrypt_status_code(self.inner) };
-        let message_ptr = unsafe { mongocrypt_status_message(self.inner, ptr::null_mut()) };
+        let code = unsafe { sys::mongocrypt_status_code(self.inner) };
+        let message_ptr = unsafe { sys::mongocrypt_status_message(self.inner, ptr::null_mut()) };
         let message = if message_ptr == ptr::null_mut() {
             None
         } else {
@@ -97,6 +96,6 @@ impl Status {
 
 impl Drop for Status {
     fn drop(&mut self) {
-        unsafe { mongocrypt_status_destroy(self.inner); }
+        unsafe { sys::mongocrypt_status_destroy(self.inner); }
     }
 }

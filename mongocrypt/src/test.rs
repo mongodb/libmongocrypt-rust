@@ -1,6 +1,6 @@
 use std::ops::Deref;
 
-use mongocrypt_sys::{mongocrypt_binary_data, mongocrypt_binary_len};
+use mongocrypt_sys as sys;
 
 use crate::binary::{Binary, BinaryRef};
 
@@ -16,8 +16,8 @@ fn binary_ref_roundtrip() {
     let data = [1, 2, 3];
     let bin = BinaryRef::new(&data);
     let bin_slice = unsafe {
-        let data = mongocrypt_binary_data(bin.binary());
-        let len = mongocrypt_binary_len(bin.binary());
+        let data = sys::mongocrypt_binary_data(bin.inner());
+        let len = sys::mongocrypt_binary_len(bin.inner());
         std::slice::from_raw_parts(data, len as usize)
     };
     assert_eq!(&data, bin_slice);
