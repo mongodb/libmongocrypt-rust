@@ -1,4 +1,5 @@
 #![allow(non_upper_case_globals)]
+#![allow(dead_code)]
 
 use std::{fmt::Display, ffi::CStr, ptr};
 
@@ -24,7 +25,7 @@ impl Display for Error {
 impl std::error::Error for Error {
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ErrorKind {
     Client,
     Kms,
@@ -43,8 +44,12 @@ impl Status {
         Self { inner: unsafe { mongocrypt_status_new() } }
     }
 
-    pub(crate) fn native(inner: *mut mongocrypt_status_t) -> Self {
+    pub(crate) fn from_native(inner: *mut mongocrypt_status_t) -> Self {
         Self { inner }
+    }
+
+    pub(crate) fn inner(&self) -> *mut mongocrypt_status_t {
+        self.inner
     }
 
     pub(crate) fn check(&self) -> Result<()> {
@@ -73,6 +78,15 @@ impl Status {
             Some(message.to_string())
         };
         Err(Error { kind, code, message })
+    }
+
+    pub(crate) fn as_error<T>(&self) -> Result<T> {
+        self.check()?;
+        Err(Error {
+            kind: ErrorKind::Internal,
+            code: 0,
+            message: Some("expected error status, got ok".to_string()),
+        })
     }
 }
 
