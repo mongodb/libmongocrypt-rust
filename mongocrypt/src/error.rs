@@ -33,6 +33,18 @@ pub enum ErrorKind {
     Internal,
 }
 
+macro_rules! internal {
+    ($($arg:tt)*) => {{
+        crate::error::Error {
+            kind: crate::error::ErrorKind::Internal,
+            code: 0,
+            message: Some(format!($($arg)*)),
+        }
+    }}
+}
+
+pub(crate) use internal;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) struct Status {
@@ -59,11 +71,8 @@ impl Status {
             mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT => ErrorKind::Client,
             mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS => ErrorKind::Kms,
             mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE => ErrorKind::CsFle,
-            _ => ErrorKind::Internal,
+            _ => return Err(internal!("unhandled status type {}", typ)),
         };
-        if kind == ErrorKind::Internal {
-            return Err(Error { kind, code: 0, message: Some(format!("unhandled status type {}", typ)) });
-        }
         let code = unsafe { mongocrypt_status_code(self.inner) };
         let message_ptr = unsafe { mongocrypt_status_message(self.inner, ptr::null_mut()) };
         let message = if message_ptr == ptr::null_mut() {
@@ -73,7 +82,7 @@ impl Status {
             let message = c_message
                 .to_str()
                 .map_err(|err| {
-                    Error { kind: ErrorKind::Internal, code: 0, message: Some(format!("invalid status message: {}", err)) }
+                    internal!("invalid status message: {}", err)
                 })?;
             Some(message.to_string())
         };
@@ -82,11 +91,7 @@ impl Status {
 
     pub(crate) fn as_error<T>(&self) -> Result<T> {
         self.check()?;
-        Err(Error {
-            kind: ErrorKind::Internal,
-            code: 0,
-            message: Some("expected error status, got ok".to_string()),
-        })
+        Err(internal!("expected error status, got ok"))
     }
 }
 

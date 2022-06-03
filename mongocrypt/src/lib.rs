@@ -90,6 +90,24 @@ impl MongoCryptBuilder {
         Ok(self)
     }
 
+    pub fn kms_provider_aws(&mut self, aws_access_key_id: &str, aws_secret_access_key: &str) -> Result<&mut Self> {
+        let key_bytes = aws_access_key_id.as_bytes();
+        let secret_bytes = aws_secret_access_key.as_bytes();
+        let ok = unsafe {
+            sys::mongocrypt_setopt_kms_provider_aws(
+                self.inner,
+                key_bytes.as_ptr() as *const i8,
+                key_bytes.len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?,
+                secret_bytes.as_ptr() as *const i8,
+                secret_bytes.len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?,
+            )
+        };
+        if !ok {
+            return self.status_error();
+        }
+        Ok(self)
+    }
+
     pub fn build(mut self) -> Result<MongoCrypt> {
         let ok = unsafe { sys::mongocrypt_init(self.inner) };
         if !ok {
