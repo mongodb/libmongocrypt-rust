@@ -24,9 +24,12 @@ impl std::error::Error for Error {
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ErrorKind {
+    // These correspond to errors from libmongocrypt
     Client,
     Kms,
     CsFle,
+    // These are produced in this crate
+    Encoding,
     Internal,
 }
 

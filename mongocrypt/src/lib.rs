@@ -1,7 +1,7 @@
-use std::{ffi::CStr, ptr};
+use std::{ffi::CStr, ptr, path::Path};
 
-use binary::BinaryRef;
-use bson::RawDocument;
+use binary::{BinaryRef, Binary};
+use bson::Document;
 use mongocrypt_sys as sys;
 
 mod binary;
@@ -80,9 +80,10 @@ impl MongoCryptBuilder {
 
         let handler: Box<Box<LogCb>> = Box::new(Box::new(handler));
         let handler_ptr = &*handler as *const Box<LogCb> as *mut std::ffi::c_void;
-        let ok = unsafe { sys::mongocrypt_setopt_log_handler(self.inner, Some(log_shim), handler_ptr) };
-        if !ok {
-            return self.status_error();
+        unsafe {
+            if !sys::mongocrypt_setopt_log_handler(self.inner, Some(log_shim), handler_ptr) {
+                return self.status_error();
+            }
         }
         
         // Now that the handler's successfully set, store it so it gets dealloced on drop.
@@ -93,45 +94,86 @@ impl MongoCryptBuilder {
     pub fn kms_provider_aws(&mut self, aws_access_key_id: &str, aws_secret_access_key: &str) -> Result<&mut Self> {
         let key_bytes = aws_access_key_id.as_bytes();
         let secret_bytes = aws_secret_access_key.as_bytes();
-        let ok = unsafe {
-            sys::mongocrypt_setopt_kms_provider_aws(
+        unsafe {
+            if !sys::mongocrypt_setopt_kms_provider_aws(
                 self.inner,
                 key_bytes.as_ptr() as *const i8,
                 key_bytes.len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?,
                 secret_bytes.as_ptr() as *const i8,
                 secret_bytes.len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?,
-            )
-        };
-        if !ok {
-            return self.status_error();
+            ) {
+                return self.status_error();
+            }
         }
         Ok(self)
     }
 
     pub fn kms_provider_local(&mut self, key: &[u8]) -> Result<&mut Self> {
         let bin = BinaryRef::new(key);
-        let ok = unsafe {
-            sys::mongocrypt_setopt_kms_provider_local(
+        unsafe {
+            if !sys::mongocrypt_setopt_kms_provider_local(
                 self.inner,
                 bin.inner(),
-            )
-        };
-        if !ok {
-            return self.status_error();
+            ) {
+                return self.status_error();
+            }
         }
         Ok(self)
     }
 
-    pub fn kms_providers(&mut self, kms_providers: &RawDocument) -> Result<&mut Self> {
-        let bytes = kms_providers.as_bytes();
-        let bin = BinaryRef::new(bytes);
-        let ok = unsafe {
-            sys::mongocrypt_setopt_kms_providers(self.inner, bin.inner())
-        };
-        if !ok {
-            return self.status_error();
+    pub fn kms_providers(&mut self, kms_providers: &Document) -> Result<&mut Self> {
+        let binary = doc_binary(kms_providers)?;
+        unsafe {
+            if !sys::mongocrypt_setopt_kms_providers(self.inner, binary.inner()) {
+                return self.status_error();
+            }
         }
         Ok(self)
+    }
+
+    pub fn schema_map(&mut self, schema_map: &Document) -> Result<&mut Self> {
+        let binary = doc_binary(schema_map)?;
+        unsafe {
+            if !sys::mongocrypt_setopt_schema_map(self.inner, binary.inner()) {
+                return self.status_error();
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn encrypted_field_config_map(&mut self, efc_map: &Document) -> Result<&mut Self> {
+        let binary = doc_binary(efc_map)?;
+        unsafe {
+            if !sys::mongocrypt_setopt_encrypted_field_config_map(self.inner, binary.inner()) {
+                return self.status_error();
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn append_crypt_shared_lib_search_path(&mut self, path: &Path) -> Result<&mut Self> {
+        let mut tmp = path_bytes(path)?;
+        tmp.push(0);
+        unsafe {
+            sys::mongocrypt_setopt_append_crypt_shared_lib_search_path(self.inner, tmp.as_ptr() as *const i8);
+        }
+        Ok(self)
+    }
+
+    pub fn set_crypt_shared_lib_path_override(&mut self, path: &Path) -> Result<&mut Self> {
+        let mut tmp = path_bytes(path)?;
+        tmp.push(0);
+        unsafe {
+            sys::mongocrypt_setopt_set_crypt_shared_lib_path_override(self.inner, tmp.as_ptr() as *const i8);
+        }
+        Ok(self)
+    }
+
+    pub fn use_need_kms_credentials_state(&mut self) -> &mut Self {
+        unsafe {
+            sys::mongocrypt_setopt_use_need_kms_credentials_state(self.inner);
+        }
+        self
     }
 
     pub fn build(mut self) -> Result<MongoCrypt> {
@@ -152,6 +194,33 @@ impl MongoCryptBuilder {
         unsafe { sys::mongocrypt_status(self.inner, status.inner()) };
         status.as_error()
     }
+}
+
+fn doc_binary(doc: &Document) -> Result<Binary> {
+    let mut bytes = vec![];
+    doc.to_writer(&mut bytes).map_err(|e| error::internal!("failure serializing doc: {}", e))?;
+    Ok(Binary::new(bytes))
+}
+
+#[cfg(unix)]
+fn path_bytes(path: &Path) -> Result<Vec<u8>> {
+    use std::os::unix::prelude::OsStrExt;
+
+    Ok(path.as_os_str().as_bytes().to_vec())
+}
+
+#[cfg(not(unix))]
+fn path_bytes(path: &Path) -> Result<Vec<u8>> {
+    // This is correct for Windows because libmongocrypt internally converts
+    // from utf8 to utf16 on that platform.
+    use error::Error;
+
+    let s = path.to_str().ok_or_else(|| Error {
+        kind: ErrorKind::Encoding,
+        code: 0,
+        message: Some(format!("could not utf-8 encode path {:?}", path)),
+    })?;
+    Ok(s.as_bytes().to_vec())
 }
 
 impl Drop for MongoCryptBuilder {
