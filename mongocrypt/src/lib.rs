@@ -1,6 +1,7 @@
 use std::{ffi::CStr, ptr};
 
 use binary::BinaryRef;
+use bson::RawDocument;
 use mongocrypt_sys as sys;
 
 mod binary;
@@ -114,6 +115,18 @@ impl MongoCryptBuilder {
                 self.inner,
                 bin.inner(),
             )
+        };
+        if !ok {
+            return self.status_error();
+        }
+        Ok(self)
+    }
+
+    pub fn kms_providers(&mut self, kms_providers: &RawDocument) -> Result<&mut Self> {
+        let bytes = kms_providers.as_bytes();
+        let bin = BinaryRef::new(bytes);
+        let ok = unsafe {
+            sys::mongocrypt_setopt_kms_providers(self.inner, bin.inner())
         };
         if !ok {
             return self.status_error();
