@@ -104,3 +104,13 @@ impl Drop for Status {
         unsafe { sys::mongocrypt_status_destroy(self.inner); }
     }
 }
+
+pub(crate) trait HasStatus {
+    unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t);
+
+    fn status(&self) -> Status {
+        let out = Status::new();
+        unsafe { self.native_status(out.native()); }
+        out
+    }
+}
