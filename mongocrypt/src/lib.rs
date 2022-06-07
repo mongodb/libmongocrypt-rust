@@ -1,4 +1,4 @@
-use std::{ffi::{CStr, CString}, ptr, path::Path};
+use std::{ffi::CStr, ptr, path::Path};
 
 use binary::{BinaryRef, Binary};
 use bson::{Document, Uuid, doc};
@@ -284,6 +284,16 @@ pub struct CtxBuilder {
     inner: *mut sys::mongocrypt_ctx_t,
 }
 
+impl Drop for CtxBuilder {
+    fn drop(&mut self) {
+        if self.inner != ptr::null_mut() {
+            unsafe {
+                sys::mongocrypt_ctx_destroy(self.inner);
+            }
+        }
+    }
+}
+
 impl HasStatus for CtxBuilder {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
         sys::mongocrypt_ctx_status(self.inner, status);
@@ -302,7 +312,7 @@ impl CtxBuilder {
         let bin = BinaryRef::new(&bytes);
         unsafe {
             if !sys::mongocrypt_ctx_setopt_key_id(self.inner, bin.native()) {
-                return Err(self.status().as_error())
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
@@ -312,7 +322,7 @@ impl CtxBuilder {
         let bin = doc_binary(&doc! { "keyAltName": key_alt_name })?;
         unsafe {
             if !sys::mongocrypt_ctx_setopt_key_alt_name(self.inner, bin.native()) {
-                return Err(self.status().as_error())
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
@@ -326,7 +336,7 @@ impl CtxBuilder {
         let bin = doc_binary(&doc! { "keyMaterial": bson_bin })?;
         unsafe {
             if !sys::mongocrypt_ctx_setopt_key_material(self.inner, bin.native()) {
-                return Err(self.status().as_error())
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
@@ -335,7 +345,7 @@ impl CtxBuilder {
     pub fn algorithm(self, algorithm: Algorithm) -> Result<Self> {
         unsafe {
             if !sys::mongocrypt_ctx_setopt_algorithm(self.inner, algorithm.c_str().as_ptr(), -1) {
-                return Err(self.status().as_error())
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
@@ -352,10 +362,50 @@ impl CtxBuilder {
                 cmk_bytes,
                 cmk_len,
             ) {
-                return Err(self.status().as_error())
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
+    }
+
+    pub fn masterkey_aws_endpoint(self, endpoint: &str) -> Result<Self> {
+        let (bytes, len) = str_bytes_len(endpoint)?;
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_masterkey_aws_endpoint(self.inner, bytes, len) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn masterkey_local(self) -> Result<Self> {
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_masterkey_local(self.inner) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn key_encryption_key(self, key_encryption_key: &Document) -> Result<Self> {
+        let bin = doc_binary(key_encryption_key)?;
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_key_encryption_key(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+            Ok(self)
+        }
+    }
+
+    pub fn build_datakey(mut self) -> Result<Ctx> {
+        unsafe {
+            if !sys::mongocrypt_ctx_datakey_init(self.inner) {
+                return Err(self.status().as_error());
+            }
+        }
+        let out = Ctx { inner: self.inner };
+        self.inner = ptr::null_mut();
+        Ok(out)
     }
 }
 
@@ -373,5 +423,25 @@ impl Algorithm {
             Self::AeadAes256CbcHmacSha512Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
         };
         unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
+    }
+}
+
+pub struct Ctx {
+    inner: *mut sys::mongocrypt_ctx_t,
+}
+
+impl Drop for Ctx {
+    fn drop(&mut self) {
+        if self.inner != ptr::null_mut() {
+            unsafe {
+                sys::mongocrypt_ctx_destroy(self.inner);
+            }
+        }
+    }
+}
+
+impl HasStatus for Ctx {
+    unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
+        sys::mongocrypt_ctx_status(self.inner, status);
     }
 }
