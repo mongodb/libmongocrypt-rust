@@ -1,7 +1,7 @@
-use std::{ffi::CStr, ptr, path::Path};
+use std::{ffi::{CStr, CString}, ptr, path::Path};
 
 use binary::{BinaryRef, Binary};
-use bson::{Document, Uuid};
+use bson::{Document, Uuid, doc};
 use mongocrypt_sys as sys;
 
 mod binary;
@@ -108,15 +108,15 @@ impl CryptBuilder {
     }
 
     pub fn kms_provider_aws(self, aws_access_key_id: &str, aws_secret_access_key: &str) -> Result<Self> {
-        let key_bytes = aws_access_key_id.as_bytes();
-        let secret_bytes = aws_secret_access_key.as_bytes();
+        let (key_bytes, key_len) = str_bytes_len(aws_access_key_id)?;
+        let (secret_bytes, secret_len) = str_bytes_len(aws_secret_access_key)?;
         unsafe {
             if !sys::mongocrypt_setopt_kms_provider_aws(
                 self.inner,
-                key_bytes.as_ptr() as *const i8,
-                key_bytes.len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?,
-                secret_bytes.as_ptr() as *const i8,
-                secret_bytes.len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?,
+                key_bytes,
+                key_len,
+                secret_bytes,
+                secret_len,
             ) {
                 return Err(self.status().as_error());
             }
@@ -233,6 +233,13 @@ fn path_bytes(path: &Path) -> Result<Vec<u8>> {
     Ok(s.as_bytes().to_vec())
 }
 
+fn str_bytes_len(s: &str) -> Result<(*const i8, i32)> {
+    Ok((
+        s.as_bytes().as_ptr() as *const i8,
+        s.as_bytes().len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?
+    ))
+}
+
 impl Drop for CryptBuilder {
     fn drop(&mut self) {
         if self.inner != ptr::null_mut() {
@@ -299,5 +306,72 @@ impl CtxBuilder {
             }
         }
         Ok(self)
+    }
+
+    pub fn key_alt_name(self, key_alt_name: &str) -> Result<Self> {
+        let bin = doc_binary(&doc! { "keyAltName": key_alt_name })?;
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_key_alt_name(self.inner, bin.native()) {
+                return Err(self.status().as_error())
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn key_material(self, key_material: &[u8]) -> Result<Self> {
+        let bson_bin = bson::Binary {
+            subtype: bson::spec::BinarySubtype::Generic,
+            bytes: key_material.to_vec(),
+        };
+        let bin = doc_binary(&doc! { "keyMaterial": bson_bin })?;
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_key_material(self.inner, bin.native()) {
+                return Err(self.status().as_error())
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn algorithm(self, algorithm: Algorithm) -> Result<Self> {
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_algorithm(self.inner, algorithm.c_str().as_ptr(), -1) {
+                return Err(self.status().as_error())
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn masterkey_aws(self, region: &str, cmk: &str) -> Result<Self> {
+        let (region_bytes, region_len) = str_bytes_len(region)?;
+        let (cmk_bytes, cmk_len) = str_bytes_len(cmk)?;
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_masterkey_aws(
+                self.inner,
+                region_bytes,
+                region_len,
+                cmk_bytes,
+                cmk_len,
+            ) {
+                return Err(self.status().as_error())
+            }
+        }
+        Ok(self)
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[non_exhaustive]
+pub enum Algorithm {
+    AeadAes256CbcHmacSha512Deterministic,
+    AeadAes256CbcHmacSha512Random,
+}
+
+impl Algorithm {
+    fn c_str(&self) -> &'static CStr {
+        let bytes: &[u8] = match self {
+            Self::AeadAes256CbcHmacSha512Deterministic => b"AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic\0",
+            Self::AeadAes256CbcHmacSha512Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
+        };
+        unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
     }
 }
