@@ -9,13 +9,23 @@ mod binary;
 mod test;
 pub mod error;
 
-use error::Result;
+use error::{Result, Status};
 
 /// Returns the version string for libmongocrypt.
 pub fn version() -> &'static str {
     let c_version = unsafe { CStr::from_ptr(sys::mongocrypt_version(ptr::null_mut())) };
     // Unwrap safety: the validity of this parse is enforced by unit test in mongocrypt-sys.
     c_version.to_str().unwrap()
+}
+
+trait HasStatus {
+    unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t);
+
+    fn status(&self) -> Status {
+        let out = Status::new();
+        unsafe { self.native_status(out.inner()); }
+        out
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -49,8 +59,13 @@ type LogCb = dyn Fn(LogLevel, &str);
 
 pub struct CryptBuilder {
     inner: *mut sys::mongocrypt_t,
-    // Double-boxing is required because the inner `Box<dyn ..>` is represented as a fat pointer; the outer one is a thin pointer convertible to *c_void.
     log_handler: Option<Box<LogCb>>,
+}
+
+impl HasStatus for CryptBuilder {
+    unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
+        sys::mongocrypt_status(self.inner, status);
+    }
 }
 
 impl CryptBuilder {
@@ -78,11 +93,12 @@ impl CryptBuilder {
             handler(level, &message);
         }
 
+        // Double-boxing is required because the inner `Box<dyn ..>` is represented as a fat pointer; the outer one is a thin pointer convertible to *c_void.
         let handler: Box<Box<LogCb>> = Box::new(Box::new(handler));
         let handler_ptr = &*handler as *const Box<LogCb> as *mut std::ffi::c_void;
         unsafe {
             if !sys::mongocrypt_setopt_log_handler(self.inner, Some(log_shim), handler_ptr) {
-                return self.status_error();
+                return Err(self.status().as_error());
             }
         }
         
@@ -102,7 +118,7 @@ impl CryptBuilder {
                 secret_bytes.as_ptr() as *const i8,
                 secret_bytes.len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?,
             ) {
-                return self.status_error();
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
@@ -115,7 +131,7 @@ impl CryptBuilder {
                 self.inner,
                 bin.inner(),
             ) {
-                return self.status_error();
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
@@ -125,7 +141,7 @@ impl CryptBuilder {
         let binary = doc_binary(kms_providers)?;
         unsafe {
             if !sys::mongocrypt_setopt_kms_providers(self.inner, binary.inner()) {
-                return self.status_error();
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
@@ -135,7 +151,7 @@ impl CryptBuilder {
         let binary = doc_binary(schema_map)?;
         unsafe {
             if !sys::mongocrypt_setopt_schema_map(self.inner, binary.inner()) {
-                return self.status_error();
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
@@ -145,7 +161,7 @@ impl CryptBuilder {
         let binary = doc_binary(efc_map)?;
         unsafe {
             if !sys::mongocrypt_setopt_encrypted_field_config_map(self.inner, binary.inner()) {
-                return self.status_error();
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
@@ -179,7 +195,7 @@ impl CryptBuilder {
     pub fn build(mut self) -> Result<Crypt> {
         let ok = unsafe { sys::mongocrypt_init(self.inner) };
         if !ok {
-            return self.status_error();
+            return Err(self.status().as_error());
         }
         let out = Crypt {
             inner: self.inner,
@@ -187,12 +203,6 @@ impl CryptBuilder {
         };
         self.inner = ptr::null_mut();
         Ok(out)
-    }
-
-    fn status_error<T>(&self) -> Result<T> {
-        let status = error::Status::new();
-        unsafe { sys::mongocrypt_status(self.inner, status.inner()) };
-        status.as_error()
     }
 }
 
@@ -233,7 +243,6 @@ impl Drop for CryptBuilder {
 
 pub struct Crypt {
     inner: *mut sys::mongocrypt_t,
-    // Double-boxing is required because the inner `Box<dyn ..>` is represented as a fat pointer; the outer one is a thin pointer convertible to *c_void.
     _log_handler: Option<Box<LogCb>>,
 }
 
@@ -261,5 +270,23 @@ impl Crypt {
             return None;
         }
         Some(out)
+    }
+}
+
+pub struct CtxBuilder {
+    inner: *mut sys::mongocrypt_ctx_t,
+}
+
+impl HasStatus for CtxBuilder {
+    unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
+        sys::mongocrypt_ctx_status(self.inner, status);
+    }
+}
+
+impl CtxBuilder {
+    pub fn new(crypt: &Crypt) -> Self {
+        Self {
+            inner: unsafe { sys::mongocrypt_ctx_new(crypt.inner) },
+        }
     }
 }

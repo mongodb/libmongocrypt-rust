@@ -91,9 +91,11 @@ impl Status {
         Err(Error { kind, code, message })
     }
 
-    pub(crate) fn as_error<T>(&self) -> Result<T> {
-        self.check()?;
-        Err(internal!("expected error status, got ok"))
+    pub(crate) fn as_error(&self) -> Error {
+        match self.check() {
+            Err(e) => e,
+            _ => internal!("expected error status, got ok")
+        }
     }
 }
 
