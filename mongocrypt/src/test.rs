@@ -30,3 +30,13 @@ fn builder_build() -> Result<()> {
         .build()?;
     Ok(())
 }
+
+#[test]
+fn crypt_shared_lib_version() -> Result<()> {
+    let crypt = MongoCryptBuilder::new()
+        .kms_provider_aws("example", "example")?
+        .build()?;
+    assert_eq!(None, crypt.shared_lib_version());
+    assert_eq!(None, crypt.shared_lib_version_string());
+    Ok(())
+}

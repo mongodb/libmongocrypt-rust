@@ -244,3 +244,22 @@ impl Drop for MongoCrypt {
         }
     }
 }
+
+impl MongoCrypt {
+    pub fn shared_lib_version_string(&self) -> Option<String> {
+        let s_ptr = unsafe { sys::mongocrypt_crypt_shared_lib_version_string(self.inner, ptr::null_mut()) };
+        if s_ptr == ptr::null() {
+            return None;
+        }
+        let s = unsafe { CStr::from_ptr(s_ptr) };
+        Some(s.to_string_lossy().to_string())
+    }
+
+    pub fn shared_lib_version(&self) -> Option<u64> {
+        let out = unsafe { sys::mongocrypt_crypt_shared_lib_version(self.inner) };
+        if out == 0 {
+            return None;
+        }
+        Some(out)
+    }
+}
