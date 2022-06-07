@@ -17,12 +17,12 @@ impl Binary {
         Self { bytes: Some(bytes), inner: binary }
     }
 
-    pub(crate) fn native(binary: *mut sys::mongocrypt_binary_t) -> Self {
+    pub(crate) fn from_native(binary: *mut sys::mongocrypt_binary_t) -> Self {
         assert!(binary != ptr::null_mut());
         Self { bytes: None, inner: binary }
     }
 
-    pub(crate) fn inner(&self) -> *mut sys::mongocrypt_binary_t {
+    pub(crate) fn native(&self) -> *mut sys::mongocrypt_binary_t {
         self.inner
     }
 }
@@ -61,7 +61,7 @@ impl<'a> BinaryRef<'a> {
         Self { _data: data, inner }
     }
 
-    pub(crate) fn inner(&self) -> *mut sys::mongocrypt_binary_t {
+    pub(crate) fn native(&self) -> *mut sys::mongocrypt_binary_t {
         self.inner
     }
 }

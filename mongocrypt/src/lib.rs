@@ -1,7 +1,7 @@
 use std::{ffi::CStr, ptr, path::Path};
 
 use binary::{BinaryRef, Binary};
-use bson::Document;
+use bson::{Document, Uuid};
 use mongocrypt_sys as sys;
 
 mod binary;
@@ -23,7 +23,7 @@ trait HasStatus {
 
     fn status(&self) -> Status {
         let out = Status::new();
-        unsafe { self.native_status(out.inner()); }
+        unsafe { self.native_status(out.native()); }
         out
     }
 }
@@ -129,7 +129,7 @@ impl CryptBuilder {
         unsafe {
             if !sys::mongocrypt_setopt_kms_provider_local(
                 self.inner,
-                bin.inner(),
+                bin.native(),
             ) {
                 return Err(self.status().as_error());
             }
@@ -140,7 +140,7 @@ impl CryptBuilder {
     pub fn kms_providers(self, kms_providers: &Document) -> Result<Self> {
         let binary = doc_binary(kms_providers)?;
         unsafe {
-            if !sys::mongocrypt_setopt_kms_providers(self.inner, binary.inner()) {
+            if !sys::mongocrypt_setopt_kms_providers(self.inner, binary.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -150,7 +150,7 @@ impl CryptBuilder {
     pub fn schema_map(self, schema_map: &Document) -> Result<Self> {
         let binary = doc_binary(schema_map)?;
         unsafe {
-            if !sys::mongocrypt_setopt_schema_map(self.inner, binary.inner()) {
+            if !sys::mongocrypt_setopt_schema_map(self.inner, binary.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -160,7 +160,7 @@ impl CryptBuilder {
     pub fn encrypted_field_config_map(self, efc_map: &Document) -> Result<Self> {
         let binary = doc_binary(efc_map)?;
         unsafe {
-            if !sys::mongocrypt_setopt_encrypted_field_config_map(self.inner, binary.inner()) {
+            if !sys::mongocrypt_setopt_encrypted_field_config_map(self.inner, binary.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -288,5 +288,16 @@ impl CtxBuilder {
         Self {
             inner: unsafe { sys::mongocrypt_ctx_new(crypt.inner) },
         }
+    }
+
+    pub fn key_id(self, key_id: &Uuid) -> Result<Self> {
+        let bytes = key_id.bytes();
+        let bin = BinaryRef::new(&bytes);
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_key_id(self.inner, bin.native()) {
+                return Err(self.status().as_error())
+            }
+        }
+        Ok(self)
     }
 }

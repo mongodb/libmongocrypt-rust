@@ -61,7 +61,7 @@ impl Status {
         Self { inner }
     }
 
-    pub(crate) fn inner(&self) -> *mut sys::mongocrypt_status_t {
+    pub(crate) fn native(&self) -> *mut sys::mongocrypt_status_t {
         self.inner
     }
 
