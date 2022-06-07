@@ -3,7 +3,7 @@ use std::{ptr, ffi::CStr};
 use bson::{doc, Document};
 use mongocrypt_sys as sys;
 
-use crate::{Crypt, binary::BinaryRef, error::{HasStatus, Result}, convert::{doc_binary, str_bytes_len}};
+use crate::{Crypt, binary::BinaryRef, error::{HasStatus, Result, self}, convert::{doc_binary, str_bytes_len}};
 
 pub struct CtxBuilder {
     inner: *mut sys::mongocrypt_ctx_t,
@@ -227,5 +227,42 @@ impl Drop for Ctx {
 impl HasStatus for Ctx {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
         sys::mongocrypt_ctx_status(self.inner, status);
+    }
+}
+
+impl Ctx {
+    pub fn state(&self) -> Result<State> {
+        State::from_native(unsafe {
+            sys::mongocrypt_ctx_state(self.inner)
+        })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[non_exhaustive]
+pub enum State {
+    Error,
+    NeedMongoCollinfo,
+    NeedMongoMarkings,
+    NeedMongoKeys,
+    NeedKms,
+    NeedKmsCredentials,
+    Ready,
+    Done,
+}
+
+impl State {
+    fn from_native(state: sys::mongocrypt_ctx_state_t) -> Result<Self> {
+        match state {
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_ERROR => Ok(Self::Error),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO => Ok(Self::NeedMongoCollinfo),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_MARKINGS => Ok(Self::NeedMongoMarkings),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_KEYS => Ok(Self::NeedMongoKeys),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS => Ok(Self::NeedKms),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS_CREDENTIALS => Ok(Self::NeedKmsCredentials),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_READY => Ok(Self::Ready),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_DONE => Ok(Self::Done),
+            _ => Err(error::internal!("unexpected ctx state {}", state)),
+        }
     }
 }
