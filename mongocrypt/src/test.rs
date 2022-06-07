@@ -10,7 +10,7 @@ mod error;
 
 #[test]
 fn builder_setopts() -> Result<()> {
-    let mut builder = MongoCryptBuilder::new();
+    let builder = MongoCryptBuilder::new();
     builder
         .log_handler(|level, msg| println!("{:?}: {}", level, msg))?
         .kms_providers(&doc! {})?
@@ -20,5 +20,13 @@ fn builder_setopts() -> Result<()> {
         .set_crypt_shared_lib_path_override(Path::new("$ORIGIN"))?
         .use_need_kms_credentials_state()
     ;
+    Ok(())
+}
+
+#[test]
+fn builder_build() -> Result<()> {
+    let _crypt = MongoCryptBuilder::new()
+        .kms_provider_aws("example", "example")?
+        .build()?;
     Ok(())
 }

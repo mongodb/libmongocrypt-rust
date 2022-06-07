@@ -61,7 +61,7 @@ impl MongoCryptBuilder {
         }
     }
 
-    pub fn log_handler<F>(&mut self, handler: F) -> Result<&mut Self>
+    pub fn log_handler<F>(mut self, handler: F) -> Result<Self>
         where F: Fn(LogLevel, &str) + 'static
     {
         extern "C" fn log_shim(
@@ -91,7 +91,7 @@ impl MongoCryptBuilder {
         Ok(self)
     }
 
-    pub fn kms_provider_aws(&mut self, aws_access_key_id: &str, aws_secret_access_key: &str) -> Result<&mut Self> {
+    pub fn kms_provider_aws(self, aws_access_key_id: &str, aws_secret_access_key: &str) -> Result<Self> {
         let key_bytes = aws_access_key_id.as_bytes();
         let secret_bytes = aws_secret_access_key.as_bytes();
         unsafe {
@@ -108,7 +108,7 @@ impl MongoCryptBuilder {
         Ok(self)
     }
 
-    pub fn kms_provider_local(&mut self, key: &[u8]) -> Result<&mut Self> {
+    pub fn kms_provider_local(self, key: &[u8]) -> Result<Self> {
         let bin = BinaryRef::new(key);
         unsafe {
             if !sys::mongocrypt_setopt_kms_provider_local(
@@ -121,7 +121,7 @@ impl MongoCryptBuilder {
         Ok(self)
     }
 
-    pub fn kms_providers(&mut self, kms_providers: &Document) -> Result<&mut Self> {
+    pub fn kms_providers(self, kms_providers: &Document) -> Result<Self> {
         let binary = doc_binary(kms_providers)?;
         unsafe {
             if !sys::mongocrypt_setopt_kms_providers(self.inner, binary.inner()) {
@@ -131,7 +131,7 @@ impl MongoCryptBuilder {
         Ok(self)
     }
 
-    pub fn schema_map(&mut self, schema_map: &Document) -> Result<&mut Self> {
+    pub fn schema_map(self, schema_map: &Document) -> Result<Self> {
         let binary = doc_binary(schema_map)?;
         unsafe {
             if !sys::mongocrypt_setopt_schema_map(self.inner, binary.inner()) {
@@ -141,7 +141,7 @@ impl MongoCryptBuilder {
         Ok(self)
     }
 
-    pub fn encrypted_field_config_map(&mut self, efc_map: &Document) -> Result<&mut Self> {
+    pub fn encrypted_field_config_map(self, efc_map: &Document) -> Result<Self> {
         let binary = doc_binary(efc_map)?;
         unsafe {
             if !sys::mongocrypt_setopt_encrypted_field_config_map(self.inner, binary.inner()) {
@@ -151,7 +151,7 @@ impl MongoCryptBuilder {
         Ok(self)
     }
 
-    pub fn append_crypt_shared_lib_search_path(&mut self, path: &Path) -> Result<&mut Self> {
+    pub fn append_crypt_shared_lib_search_path(self, path: &Path) -> Result<Self> {
         let mut tmp = path_bytes(path)?;
         tmp.push(0);
         unsafe {
@@ -160,7 +160,7 @@ impl MongoCryptBuilder {
         Ok(self)
     }
 
-    pub fn set_crypt_shared_lib_path_override(&mut self, path: &Path) -> Result<&mut Self> {
+    pub fn set_crypt_shared_lib_path_override(self, path: &Path) -> Result<Self> {
         let mut tmp = path_bytes(path)?;
         tmp.push(0);
         unsafe {
@@ -169,7 +169,7 @@ impl MongoCryptBuilder {
         Ok(self)
     }
 
-    pub fn use_need_kms_credentials_state(&mut self) -> &mut Self {
+    pub fn use_need_kms_credentials_state(self) -> Self {
         unsafe {
             sys::mongocrypt_setopt_use_need_kms_credentials_state(self.inner);
         }
@@ -189,7 +189,7 @@ impl MongoCryptBuilder {
         Ok(out)
     }
 
-    fn status_error<T>(&mut self) -> Result<T> {
+    fn status_error<T>(&self) -> Result<T> {
         let status = error::Status::new();
         unsafe { sys::mongocrypt_status(self.inner, status.inner()) };
         status.as_error()
