@@ -2,7 +2,7 @@ use std::path::Path;
 
 use bson::doc;
 
-use crate::MongoCryptBuilder;
+use crate::CryptBuilder;
 use crate::error::Result;
 
 mod binary;
@@ -10,7 +10,7 @@ mod error;
 
 #[test]
 fn builder_setopts() -> Result<()> {
-    let builder = MongoCryptBuilder::new();
+    let builder = CryptBuilder::new();
     builder
         .log_handler(|level, msg| println!("{:?}: {}", level, msg))?
         .kms_providers(&doc! {})?
@@ -25,7 +25,7 @@ fn builder_setopts() -> Result<()> {
 
 #[test]
 fn builder_build() -> Result<()> {
-    let _crypt = MongoCryptBuilder::new()
+    let _crypt = CryptBuilder::new()
         .kms_provider_aws("example", "example")?
         .build()?;
     Ok(())
@@ -33,7 +33,7 @@ fn builder_build() -> Result<()> {
 
 #[test]
 fn crypt_shared_lib_version() -> Result<()> {
-    let crypt = MongoCryptBuilder::new()
+    let crypt = CryptBuilder::new()
         .kms_provider_aws("example", "example")?
         .build()?;
     assert_eq!(None, crypt.shared_lib_version());

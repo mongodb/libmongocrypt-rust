@@ -47,13 +47,13 @@ impl LogLevel {
 
 type LogCb = dyn Fn(LogLevel, &str);
 
-pub struct MongoCryptBuilder {
+pub struct CryptBuilder {
     inner: *mut sys::mongocrypt_t,
     // Double-boxing is required because the inner `Box<dyn ..>` is represented as a fat pointer; the outer one is a thin pointer convertible to *c_void.
     log_handler: Option<Box<LogCb>>,
 }
 
-impl MongoCryptBuilder {
+impl CryptBuilder {
     pub fn new() -> Self {
         Self {
             inner: unsafe { sys::mongocrypt_new() },
@@ -176,12 +176,12 @@ impl MongoCryptBuilder {
         self
     }
 
-    pub fn build(mut self) -> Result<MongoCrypt> {
+    pub fn build(mut self) -> Result<Crypt> {
         let ok = unsafe { sys::mongocrypt_init(self.inner) };
         if !ok {
             return self.status_error();
         }
-        let out = MongoCrypt {
+        let out = Crypt {
             inner: self.inner,
             _log_handler: self.log_handler.take(),
         };
@@ -223,7 +223,7 @@ fn path_bytes(path: &Path) -> Result<Vec<u8>> {
     Ok(s.as_bytes().to_vec())
 }
 
-impl Drop for MongoCryptBuilder {
+impl Drop for CryptBuilder {
     fn drop(&mut self) {
         if self.inner != ptr::null_mut() {
             unsafe { sys::mongocrypt_destroy(self.inner); }
@@ -231,13 +231,13 @@ impl Drop for MongoCryptBuilder {
     }
 }
 
-pub struct MongoCrypt {
+pub struct Crypt {
     inner: *mut sys::mongocrypt_t,
     // Double-boxing is required because the inner `Box<dyn ..>` is represented as a fat pointer; the outer one is a thin pointer convertible to *c_void.
     _log_handler: Option<Box<LogCb>>,
 }
 
-impl Drop for MongoCrypt {
+impl Drop for Crypt {
     fn drop(&mut self) {
         if self.inner != ptr::null_mut() {
             unsafe { sys::mongocrypt_destroy(self.inner); }
@@ -245,7 +245,7 @@ impl Drop for MongoCrypt {
     }
 }
 
-impl MongoCrypt {
+impl Crypt {
     pub fn shared_lib_version_string(&self) -> Option<String> {
         let s_ptr = unsafe { sys::mongocrypt_crypt_shared_lib_version_string(self.inner, ptr::null_mut()) };
         if s_ptr == ptr::null() {
