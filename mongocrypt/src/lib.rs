@@ -1,7 +1,7 @@
 use std::{ffi::CStr, ptr, path::Path};
 
 use binary::{BinaryRef, Binary};
-use bson::{Document, Uuid, doc};
+use bson::{Document, Uuid, doc, Bson};
 use mongocrypt_sys as sys;
 
 mod binary;
@@ -397,15 +397,74 @@ impl CtxBuilder {
         }
     }
 
-    pub fn build_datakey(mut self) -> Result<Ctx> {
+    fn into_ctx(mut self) -> Ctx {
+        let out = Ctx { inner: self.inner };
+        self.inner = ptr::null_mut();
+        out
+    }
+
+    pub fn build_datakey(self) -> Result<Ctx> {
         unsafe {
             if !sys::mongocrypt_ctx_datakey_init(self.inner) {
                 return Err(self.status().as_error());
             }
         }
-        let out = Ctx { inner: self.inner };
-        self.inner = ptr::null_mut();
-        Ok(out)
+        Ok(self.into_ctx())
+    }
+
+    pub fn build_encrypt(self, db: &str, cmd: &Document) -> Result<Ctx> {
+        let (db_bytes, db_len) = str_bytes_len(db)?;
+        let cmd_bin = doc_binary(cmd)?;
+        unsafe {
+            if !sys::mongocrypt_ctx_encrypt_init(self.inner, db_bytes, db_len, cmd_bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self.into_ctx())
+    }
+
+    pub fn build_explicit_encrypt(self, value: &Bson) -> Result<Ctx> {
+        let bin = doc_binary(&doc! { "v": value })?;
+        unsafe {
+            if !sys::mongocrypt_ctx_explicit_encrypt_init(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self.into_ctx())
+    }
+
+    pub fn build_decrypt(self, doc: &Document) -> Result<Ctx> {
+        let bin = doc_binary(doc)?;
+        unsafe {
+            if !sys::mongocrypt_ctx_decrypt_init(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self.into_ctx())
+    }
+
+    pub fn build_explicit_decrypt(self, msg: &[u8]) -> Result<Ctx> {
+        let bson_bin = bson::Binary {
+            subtype: bson::spec::BinarySubtype::Encrypted,
+            bytes: msg.into(),
+        };
+        let bin = doc_binary(&doc! { "v": bson_bin })?;
+        unsafe {
+            if !sys::mongocrypt_ctx_explicit_decrypt_init(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self.into_ctx())
+    }
+
+    pub fn build_rewrap_many_datakey(self, filter: &Document) -> Result<Ctx> {
+        let bin = doc_binary(filter)?;
+        unsafe {
+            if !sys::mongocrypt_ctx_rewrap_many_datakey_init(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self.into_ctx())
     }
 }
 
