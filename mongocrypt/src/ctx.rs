@@ -1,9 +1,9 @@
-use std::{ptr, ffi::CStr};
+use std::{ptr, ffi::CStr, marker::PhantomData};
 
 use bson::{doc, Document, RawDocument};
 use mongocrypt_sys as sys;
 
-use crate::{Crypt, binary::{BinaryRef, Binary}, error::{HasStatus, Result, self}, convert::{doc_binary, str_bytes_len}};
+use crate::{binary::{BinaryRef, Binary}, error::{HasStatus, Result, self}, convert::{doc_binary, str_bytes_len, rawdoc}};
 
 pub struct CtxBuilder {
     inner: *mut sys::mongocrypt_ctx_t,
@@ -26,10 +26,8 @@ impl HasStatus for CtxBuilder {
 }
 
 impl CtxBuilder {
-    pub fn new(crypt: &Crypt) -> Self {
-        Self {
-            inner: unsafe { sys::mongocrypt_ctx_new(crypt.inner) },
-        }
+    pub(crate) fn new(inner: *mut sys::mongocrypt_ctx_t) -> Self {
+        Self { inner }
     }
 
     pub fn key_id(self, key_id: &bson::Uuid) -> Result<Self> {
@@ -250,10 +248,10 @@ impl Ctx {
             }
             bin.bytes()
         };
-        RawDocument::from_bytes(op_bytes).map_err(|e| error::internal!("mongo_op parse failure: {}", e))
+        rawdoc(op_bytes)
     }
 
-    pub fn mongo_feed(&self, reply: &RawDocument) -> Result<()> {
+    pub fn mongo_feed(&mut self, reply: &RawDocument) -> Result<()> {
         let bin = BinaryRef::new(reply.as_bytes());
         unsafe {
             if !sys::mongocrypt_ctx_mongo_feed(self.inner, bin.native()) {
@@ -263,9 +261,23 @@ impl Ctx {
         Ok(())
     }
 
-    pub fn mongo_done(&self) -> Result<()> {
+    pub fn mongo_done(&mut self) -> Result<()> {
         unsafe {
             if !sys::mongocrypt_ctx_mongo_done(self.inner) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn kms_scope(&self) -> KmsScope {
+        KmsScope { ctx: self, done: false }
+    }
+
+    pub fn kms_done(&mut self, mut scope: KmsScope) -> Result<()> {
+        scope.done = true;
+        unsafe {
+            if !sys::mongocrypt_ctx_kms_done(self.inner) {
                 return Err(self.status().as_error());
             }
         }
@@ -299,5 +311,57 @@ impl State {
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_DONE => Ok(Self::Done),
             _ => Err(error::internal!("unexpected ctx state {}", state)),
         }
+    }
+}
+
+pub struct KmsScope<'ctx> {
+    ctx: &'ctx Ctx,
+    done: bool,
+}
+
+impl<'ctx> KmsScope<'ctx> {
+    pub fn next_kms_ctx(&mut self) -> Option<KmsCtx> {
+        let inner = unsafe {
+            sys::mongocrypt_ctx_next_kms_ctx(self.ctx.inner)
+        };
+        if inner == ptr::null_mut() {
+            return None;
+        }
+        Some(KmsCtx { inner, _marker: PhantomData })
+    }
+}
+
+impl<'ctx> Drop for KmsScope<'ctx> {
+    fn drop(&mut self) {
+        #[cfg(debug_assertions)]
+        if !self.done {
+            panic!("KmsScope dropped without calling kms_done");
+        }
+    }
+}
+
+pub struct KmsCtx<'scope> {
+    inner: *mut sys::mongocrypt_kms_ctx_t,
+    _marker: PhantomData<&'scope mut ()>,
+}
+
+impl<'scope> HasStatus for KmsCtx<'scope> {
+    unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
+        sys::mongocrypt_kms_ctx_status(self.inner, status);
+    }
+}
+
+impl<'scope> KmsCtx<'scope> {
+    pub fn message(&self) -> Result<&'scope RawDocument> {
+        // Safety: the message referenced has a lifetime that's valid until kms_done is called,
+        // which can't happen without ending 'scope.
+        let bytes = unsafe {
+            let bin = Binary::new();
+            if !sys::mongocrypt_kms_ctx_message(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+            bin.bytes()
+        };
+        rawdoc(bytes)
     }
 }

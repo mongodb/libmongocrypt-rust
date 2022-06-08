@@ -1,4 +1,4 @@
-use bson::Document;
+use bson::{Document, RawDocument};
 
 use crate::{error::{Result, self}, binary::BinaryBuf};
 
@@ -34,4 +34,8 @@ pub(crate) fn str_bytes_len(s: &str) -> Result<(*const i8, i32)> {
         s.as_bytes().as_ptr() as *const i8,
         s.as_bytes().len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?
     ))
+}
+
+pub(crate) fn rawdoc(bytes: &[u8]) -> Result<&RawDocument> {
+    RawDocument::from_bytes(bytes).map_err(|e| error::internal!("document parse failure: {}", e))
 }

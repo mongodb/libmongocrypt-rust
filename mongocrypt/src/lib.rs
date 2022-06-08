@@ -3,6 +3,7 @@ use std::{ffi::CStr, ptr, path::Path};
 use binary::BinaryRef;
 use bson::Document;
 use convert::{str_bytes_len, doc_binary, path_bytes};
+use ctx::CtxBuilder;
 use mongocrypt_sys as sys;
 
 mod binary;
@@ -236,5 +237,9 @@ impl Crypt {
             return None;
         }
         Some(out)
+    }
+
+    pub fn ctx_builder(&self) -> CtxBuilder {
+        CtxBuilder::new(unsafe { sys::mongocrypt_ctx_new(self.inner) })
     }
 }
