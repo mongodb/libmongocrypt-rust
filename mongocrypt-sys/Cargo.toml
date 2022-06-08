@@ -1,0 +1,21 @@
+[package]
+name = "mongocrypt-sys"
+description = "FFI bindings to libmongocrypt"
+version = "0.1.0+1.5.0-rc0"
+edition = "2021"
+license = "Apache-2.0"
+authors = [
+     "Abraham Egnor <abraham.egnor@mongodb.com>",
+]
+keywords = ["mongo", "mongodb", "database", "mongocrypt", "libmongocrypt"]
+categories = ["database", "cryptography", "external-ffi-bindings"]
+repository = "https://github.com/mongodb/libmongocrypt-rust"
+links = "mongocrypt"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+[dev-dependencies]
+bson = "2.2.0"
+serde_json = "1.0.81"
