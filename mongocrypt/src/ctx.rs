@@ -1,9 +1,9 @@
 use std::{ptr, ffi::CStr};
 
-use bson::{doc, Document};
+use bson::{doc, Document, RawDocument};
 use mongocrypt_sys as sys;
 
-use crate::{Crypt, binary::BinaryRef, error::{HasStatus, Result, self}, convert::{doc_binary, str_bytes_len}};
+use crate::{Crypt, binary::{BinaryRef, Binary}, error::{HasStatus, Result, self}, convert::{doc_binary, str_bytes_len}};
 
 pub struct CtxBuilder {
     inner: *mut sys::mongocrypt_ctx_t,
@@ -235,6 +235,41 @@ impl Ctx {
         State::from_native(unsafe {
             sys::mongocrypt_ctx_state(self.inner)
         })
+    }
+
+    pub fn mongo_op(&self) -> Result<&RawDocument> {
+        // Safety: `mongocrypt_ctx_mongo_op` updates the passed-in `Binary` to point to a chunk of
+        // BSON with the same lifetime as the underlying `Ctx`.  The `Binary` itself does not own
+        // the memory, and gets cleaned up at the end of the unsafe block.  Lifetime inference on
+        // the return type binds `op_bytes` to the same lifetime as `&self`, which is the correct
+        // one.
+        let op_bytes = unsafe {
+            let bin = Binary::new();
+            if !sys::mongocrypt_ctx_mongo_op(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+            bin.bytes()
+        };
+        RawDocument::from_bytes(op_bytes).map_err(|e| error::internal!("mongo_op parse failure: {}", e))
+    }
+
+    pub fn mongo_feed(&self, reply: &RawDocument) -> Result<()> {
+        let bin = BinaryRef::new(reply.as_bytes());
+        unsafe {
+            if !sys::mongocrypt_ctx_mongo_feed(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn mongo_done(&self) -> Result<()> {
+        unsafe {
+            if !sys::mongocrypt_ctx_mongo_done(self.inner) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(())
     }
 }
 

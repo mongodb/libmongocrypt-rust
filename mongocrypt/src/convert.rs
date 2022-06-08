@@ -1,11 +1,11 @@
 use bson::Document;
 
-use crate::{error::{Result, self}, binary::Binary};
+use crate::{error::{Result, self}, binary::BinaryBuf};
 
-pub(crate) fn doc_binary(doc: &Document) -> Result<Binary> {
+pub(crate) fn doc_binary(doc: &Document) -> Result<BinaryBuf> {
     let mut bytes = vec![];
     doc.to_writer(&mut bytes).map_err(|e| error::internal!("failure serializing doc: {}", e))?;
-    Ok(Binary::new(bytes))
+    Ok(BinaryBuf::new(bytes))
 }
 
 #[cfg(unix)]
