@@ -364,4 +364,16 @@ impl<'scope> KmsCtx<'scope> {
         };
         rawdoc(bytes)
     }
+
+    pub fn endpoint(&self) -> Result<String> {
+        let mut c_str: *const ::std::os::raw::c_char = ptr::null();
+        let str = unsafe {
+            if !sys::mongocrypt_kms_ctx_endpoint(self.inner, &mut c_str as *mut *const ::std::os::raw::c_char) {
+                return Err(self.status().as_error());
+            }
+            CStr::from_ptr(c_str).to_str()
+                .map_err(|err| error::internal!("invalid endpoint string: {}", err))?
+        };
+        Ok(str.to_string())
+    }
 }
