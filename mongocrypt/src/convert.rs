@@ -1,3 +1,5 @@
+use std::ffi::CStr;
+
 use bson::{Document, RawDocument};
 
 use crate::{error::{Result, self}, binary::BinaryBuf};
@@ -10,7 +12,7 @@ pub(crate) fn doc_binary(doc: &Document) -> Result<BinaryBuf> {
 
 #[cfg(unix)]
 pub(crate) fn path_bytes(path: &std::path::Path) -> Result<Vec<u8>> {
-    use std::{os::unix::prelude::OsStrExt};
+    use std::os::unix::prelude::OsStrExt;
 
     Ok(path.as_os_str().as_bytes().to_vec())
 }
@@ -38,4 +40,9 @@ pub(crate) fn str_bytes_len(s: &str) -> Result<(*const i8, i32)> {
 
 pub(crate) fn rawdoc(bytes: &[u8]) -> Result<&RawDocument> {
     RawDocument::from_bytes(bytes).map_err(|e| error::internal!("document parse failure: {}", e))
+}
+
+pub(crate) unsafe fn c_str<'a>(ptr: *const std::os::raw::c_char) -> Result<&'a str> {
+    CStr::from_ptr(ptr).to_str()
+        .map_err(|err| error::internal!("invalid string: {}", err))
 }

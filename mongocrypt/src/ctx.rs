@@ -3,7 +3,7 @@ use std::{ptr, ffi::CStr, marker::PhantomData};
 use bson::{doc, Document, RawDocument};
 use mongocrypt_sys as sys;
 
-use crate::{binary::{BinaryRef, Binary}, error::{HasStatus, Result, self}, convert::{doc_binary, str_bytes_len, rawdoc}};
+use crate::{binary::{BinaryRef, Binary}, error::{HasStatus, Result, self}, convert::{doc_binary, str_bytes_len, rawdoc, c_str}};
 
 pub struct CtxBuilder {
     inner: *mut sys::mongocrypt_ctx_t,
@@ -365,15 +365,36 @@ impl<'scope> KmsCtx<'scope> {
         rawdoc(bytes)
     }
 
-    pub fn endpoint(&self) -> Result<String> {
-        let mut c_str: *const ::std::os::raw::c_char = ptr::null();
-        let str = unsafe {
-            if !sys::mongocrypt_kms_ctx_endpoint(self.inner, &mut c_str as *mut *const ::std::os::raw::c_char) {
+    pub fn endpoint(&self) -> Result<&'scope str> {
+        let mut ptr: *const ::std::os::raw::c_char = ptr::null();
+        unsafe {
+            if !sys::mongocrypt_kms_ctx_endpoint(self.inner, &mut ptr as *mut *const ::std::os::raw::c_char) {
                 return Err(self.status().as_error());
             }
-            CStr::from_ptr(c_str).to_str()
-                .map_err(|err| error::internal!("invalid endpoint string: {}", err))?
-        };
-        Ok(str.to_string())
+            c_str(ptr)
+        }
+    }
+
+    pub fn bytes_needed(&self) -> u32 {
+        unsafe {
+            sys::mongocrypt_kms_ctx_bytes_needed(self.inner)
+        }
+    }
+
+    pub fn feed(&mut self, bytes: &[u8]) -> Result<()> {
+        let bin = BinaryRef::new(bytes);
+        unsafe {
+            if !sys::mongocrypt_kms_ctx_feed(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn get_kms_provider(&self) -> Result<&'static str> {
+        unsafe {
+            let ptr = sys::mongocrypt_kms_ctx_get_kms_provider(self.inner, ptr::null_mut());
+            c_str(ptr)
+        }
     }
 }
