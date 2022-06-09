@@ -100,7 +100,7 @@ impl CryptBuilder {
         }
         
         // Now that the handler's successfully set, store it so it gets cleaned up on drop.
-        self.cleanup.push(Box::new(handler));
+        self.cleanup.push(handler);
         Ok(self)
     }
 
@@ -190,11 +190,13 @@ impl CryptBuilder {
     }
 
     pub fn crypto_hooks(
-        self,
-        aes_256_cbc_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + 'static,
+        mut self,
+        aes_256_cbc_encrypt: Option<impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + 'static>,
     ) -> Result<Self> {
-        type CryptoCb = dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()>;
-        extern "C" fn crypto_fn(
+        struct Hooks {
+            aes_256_cbc_encrypt: Option<Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()>>>,
+        }
+        extern "C" fn crypto_shim(
             ctx: *mut ::std::os::raw::c_void,
             key: *mut sys::mongocrypt_binary_t,
             iv: *mut sys::mongocrypt_binary_t,
@@ -203,22 +205,21 @@ impl CryptBuilder {
             bytes_written: *mut u32,
             c_status: *mut sys::mongocrypt_status_t,
         ) -> bool {
-            let inner = || -> Result<()> {
-                let handler = unsafe { &*(ctx as *const Box<CryptoCb>) };
+            // Convenience scope for intermediate error propagation via `?`.
+            let result = || -> Result<()> {
+                let hooks = unsafe { &*(ctx as *const Hooks) };
                 let key_bytes = unsafe { binary_bytes(key)? };
                 let iv_bytes = unsafe { binary_bytes(iv)? };
                 let in_bytes = unsafe { binary_bytes(in_)? };
                 let mut out_bytes = unsafe { binary_bytes_mut(out)? };
                 let buffer_len = out_bytes.len();
-                let result = handler(key_bytes, iv_bytes, in_bytes, &mut out_bytes);
+                let result = hooks.aes_256_cbc_encrypt.as_ref().unwrap()(key_bytes, iv_bytes, in_bytes, &mut out_bytes);
                 let written = buffer_len - out_bytes.len();
                 unsafe {
                     *bytes_written = written.try_into().map_err(|e| error::overflow!("buffer size overflow: {}", e))?;
                 }
                 result.map_err(Into::into)
-            };
-            let result = inner();
-            
+            }();
             let err = match result {
                 Ok(()) => return true,
                 Err(Error { kind: ErrorKind::Crypt(ck), code, message }) => Error { kind: ck, code, message },
@@ -245,7 +246,33 @@ impl CryptBuilder {
             }
             false
         }
-        todo!()
+        let aes_256_cbc_encrypt = aes_256_cbc_encrypt.map(|f| {
+            let b: Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()>> = Box::new(f);
+            b
+        });
+        let mut hooks = Box::new(Hooks {
+            aes_256_cbc_encrypt,
+        });
+        // This is needed to give the typechecker a nudge in the right direction.
+        fn opt_match<A, B>(a: &Option<A>, b: B) -> Option<B> {
+            a.as_ref().map(|_| b)
+        }
+        unsafe {
+            if !sys::mongocrypt_setopt_crypto_hooks(
+                self.inner,
+                opt_match(&hooks.aes_256_cbc_encrypt, crypto_shim),
+                None,
+                None,
+                None,
+                None,
+                None,
+                &mut *hooks as *mut Hooks as *mut std::ffi::c_void,
+            ) {
+                return Err(self.status().as_error());
+            }
+        }
+        self.cleanup.push(hooks);
+        Ok(self)
     }
 
     pub fn build(mut self) -> Result<Crypt> {
