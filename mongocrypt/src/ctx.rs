@@ -283,6 +283,27 @@ impl Ctx {
         }
         Ok(())
     }
+
+    pub fn provide_kms_providers(&mut self, kms_providers_definition: &RawDocument) -> Result<()> {
+        let bin = BinaryRef::new(kms_providers_definition.as_bytes());
+        unsafe {
+            if !sys::mongocrypt_ctx_provide_kms_providers(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(())
+    }
+
+    pub fn finalize(&mut self) -> Result<&RawDocument> {
+        let bytes = unsafe {
+            let bin = Binary::new();
+            if !sys::mongocrypt_ctx_finalize(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+            bin.bytes()
+        };
+        rawdoc(bytes)
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
