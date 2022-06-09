@@ -1,5 +1,8 @@
 use mongocrypt_sys as sys;
 
+use crate::convert::binary_bytes;
+use crate::error::Result;
+
 pub(crate) struct Binary {
     inner: *mut sys::mongocrypt_binary_t,
 }
@@ -23,10 +26,8 @@ impl Binary {
         self.inner
     }
 
-    pub(crate) unsafe fn bytes<'a>(&self) -> &'a [u8] {
-        let data = sys::mongocrypt_binary_data(self.inner);
-        let len = sys::mongocrypt_binary_len(self.inner);
-        std::slice::from_raw_parts(data, len as usize)
+    pub(crate) unsafe fn bytes<'a>(&self) -> Result<&'a [u8]> {
+        binary_bytes(self.inner)
     }
 }
 

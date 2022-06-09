@@ -1,4 +1,4 @@
-use std::{ffi::CStr, ptr, path::Path};
+use std::{ffi::CStr, ptr, path::Path, io::Write};
 
 use binary::BinaryRef;
 use bson::Document;
@@ -13,7 +13,9 @@ pub mod ctx;
 mod test;
 pub mod error;
 
-use error::{Result, HasStatus};
+use error::{Result, HasStatus, CryptResult};
+
+use crate::{convert::{binary_bytes, binary_bytes_mut}, error::{Error, ErrorKind, Status}};
 
 /// Returns the version string for libmongocrypt.
 pub fn version() -> &'static str {
@@ -49,8 +51,6 @@ impl LogLevel {
     }
 }
 
-type LogCb = dyn Fn(LogLevel, &str);
-
 pub struct CryptBuilder {
     inner: *mut sys::mongocrypt_t,
     cleanup: Vec<Box<dyn std::any::Any>>,
@@ -73,6 +73,8 @@ impl CryptBuilder {
     pub fn log_handler<F>(mut self, handler: F) -> Result<Self>
         where F: Fn(LogLevel, &str) + 'static
     {
+        type LogCb = dyn Fn(LogLevel, &str);
+
         extern "C" fn log_shim(
             c_level: sys::mongocrypt_log_level_t,
             c_message: *const ::std::os::raw::c_char,
@@ -83,7 +85,8 @@ impl CryptBuilder {
             let cs_message = unsafe { CStr::from_ptr(c_message) };
             let message = cs_message.to_string_lossy();
             // Safety: this pointer originates below with the same type and with a lifetime of that of the containing `MongoCrypt`.
-            let handler: &Box<LogCb> = unsafe { std::mem::transmute(ctx) };
+            //let handler: &Box<LogCb> = unsafe { std::mem::transmute(ctx) };
+            let handler = unsafe { &*(ctx as *const Box<LogCb>) };
             handler(level, &message);
         }
 
@@ -188,8 +191,60 @@ impl CryptBuilder {
 
     pub fn crypto_hooks(
         self,
-        aes_256_cbc_encrypt: impl Fn(&[u8], &[u8], &[u8]) -> Result<Vec<u8>>,
+        aes_256_cbc_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + 'static,
     ) -> Result<Self> {
+        type CryptoCb = dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()>;
+        extern "C" fn crypto_fn(
+            ctx: *mut ::std::os::raw::c_void,
+            key: *mut sys::mongocrypt_binary_t,
+            iv: *mut sys::mongocrypt_binary_t,
+            in_: *mut sys::mongocrypt_binary_t,
+            out: *mut sys::mongocrypt_binary_t,
+            bytes_written: *mut u32,
+            c_status: *mut sys::mongocrypt_status_t,
+        ) -> bool {
+            let inner = || -> Result<()> {
+                let handler = unsafe { &*(ctx as *const Box<CryptoCb>) };
+                let key_bytes = unsafe { binary_bytes(key)? };
+                let iv_bytes = unsafe { binary_bytes(iv)? };
+                let in_bytes = unsafe { binary_bytes(in_)? };
+                let mut out_bytes = unsafe { binary_bytes_mut(out)? };
+                let buffer_len = out_bytes.len();
+                let result = handler(key_bytes, iv_bytes, in_bytes, &mut out_bytes);
+                let written = buffer_len - out_bytes.len();
+                unsafe {
+                    *bytes_written = written.try_into().map_err(|e| error::overflow!("buffer size overflow: {}", e))?;
+                }
+                result.map_err(Into::into)
+            };
+            let result = inner();
+            
+            let err = match result {
+                Ok(()) => return true,
+                Err(Error { kind: ErrorKind::Crypt(ck), code, message }) => Error { kind: ck, code, message },
+                // Map Rust-specific errors to Client with a message prefix.
+                Err(Error { kind, code, message }) => Error {
+                    kind: error::ErrorKindCrypt::Client,
+                    code,
+                    message: message.map(|s| format!("{:?}: {}", kind, s)),
+                }
+            };
+            let mut status = Status::from_native(c_status);
+            if let Err(status_err) = status.set(&err) {
+                eprintln!("Failed to record error:\noriginal error = {:?}\nstatus error = {:?}", err, status_err);
+                unsafe {
+                    // Set a hardcoded status that can't fail.
+                    sys::mongocrypt_status_set(
+                        c_status,
+                        sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
+                        0,
+                        b"Failed to record error, see logs for details\0".as_ptr() as *const i8,
+                        -1,
+                    );
+                }
+            }
+            false
+        }
         todo!()
     }
 

@@ -246,7 +246,7 @@ impl Ctx {
             if !sys::mongocrypt_ctx_mongo_op(self.inner, bin.native()) {
                 return Err(self.status().as_error());
             }
-            bin.bytes()
+            bin.bytes()?
         };
         rawdoc(op_bytes)
     }
@@ -300,7 +300,7 @@ impl Ctx {
             if !sys::mongocrypt_ctx_finalize(self.inner, bin.native()) {
                 return Err(self.status().as_error());
             }
-            bin.bytes()
+            bin.bytes()?
         };
         rawdoc(bytes)
     }
@@ -381,7 +381,7 @@ impl<'scope> KmsCtx<'scope> {
             if !sys::mongocrypt_kms_ctx_message(self.inner, bin.native()) {
                 return Err(self.status().as_error());
             }
-            bin.bytes()
+            bin.bytes()?
         };
         rawdoc(bytes)
     }

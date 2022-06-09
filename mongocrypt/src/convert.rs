@@ -1,6 +1,7 @@
 use std::ffi::CStr;
 
 use bson::{Document, RawDocument};
+use mongocrypt_sys as sys;
 
 use crate::{error::{Result, self}, binary::BinaryBuf};
 
@@ -34,7 +35,7 @@ pub(crate) fn path_bytes(path: &Path) -> Result<Vec<u8>> {
 pub(crate) fn str_bytes_len(s: &str) -> Result<(*const i8, i32)> {
     Ok((
         s.as_bytes().as_ptr() as *const i8,
-        s.as_bytes().len().try_into().map_err(|e| error::internal!("size overflow: {}", e))?
+        s.as_bytes().len().try_into().map_err(|e| error::overflow!("string size overflow: {}", e))?
     ))
 }
 
@@ -44,5 +45,23 @@ pub(crate) fn rawdoc(bytes: &[u8]) -> Result<&RawDocument> {
 
 pub(crate) unsafe fn c_str<'a>(ptr: *const std::os::raw::c_char) -> Result<&'a str> {
     CStr::from_ptr(ptr).to_str()
-        .map_err(|err| error::internal!("invalid string: {}", err))
+        .map_err(|err| error::encoding!("invalid string: {}", err))
+}
+
+pub(crate) unsafe fn binary_bytes<'a>(binary: *mut sys::mongocrypt_binary_t) -> Result<&'a [u8]> {
+    let data = sys::mongocrypt_binary_data(binary);
+    let len = sys::mongocrypt_binary_len(binary);
+    Ok(std::slice::from_raw_parts(
+        data,
+        len.try_into().map_err(|e| error::overflow!("data size overflow: {}", e))?,
+    ))
+}
+
+pub(crate) unsafe fn binary_bytes_mut<'a>(binary: *mut sys::mongocrypt_binary_t) -> Result<&'a mut [u8]> {
+    let data = sys::mongocrypt_binary_data(binary);
+    let len = sys::mongocrypt_binary_len(binary);
+    Ok(std::slice::from_raw_parts_mut(
+        data,
+        len.try_into().map_err(|e| error::overflow!("data size overflow: {}", e))?,
+    ))
 }
