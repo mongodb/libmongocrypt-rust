@@ -53,7 +53,7 @@ type LogCb = dyn Fn(LogLevel, &str);
 
 pub struct CryptBuilder {
     inner: *mut sys::mongocrypt_t,
-    log_handler: Option<Box<LogCb>>,
+    cleanup: Vec<Box<dyn std::any::Any>>,
 }
 
 impl HasStatus for CryptBuilder {
@@ -66,7 +66,7 @@ impl CryptBuilder {
     pub fn new() -> Self {
         Self {
             inner: unsafe { sys::mongocrypt_new() },
-            log_handler: None,
+            cleanup: vec![],
         }
     }
 
@@ -96,8 +96,8 @@ impl CryptBuilder {
             }
         }
         
-        // Now that the handler's successfully set, store it so it gets dealloced on drop.
-        self.log_handler = Some(handler);
+        // Now that the handler's successfully set, store it so it gets cleaned up on drop.
+        self.cleanup.push(Box::new(handler));
         Ok(self)
     }
 
@@ -186,6 +186,13 @@ impl CryptBuilder {
         self
     }
 
+    pub fn crypto_hooks(
+        self,
+        aes_256_cbc_encrypt: impl Fn(&[u8], &[u8], &[u8]) -> Result<Vec<u8>>,
+    ) -> Result<Self> {
+        todo!()
+    }
+
     pub fn build(mut self) -> Result<Crypt> {
         let ok = unsafe { sys::mongocrypt_init(self.inner) };
         if !ok {
@@ -193,7 +200,7 @@ impl CryptBuilder {
         }
         let out = Crypt {
             inner: self.inner,
-            _log_handler: self.log_handler.take(),
+            _cleanup: std::mem::take(&mut self.cleanup),
         };
         self.inner = ptr::null_mut();
         Ok(out)
@@ -210,7 +217,7 @@ impl Drop for CryptBuilder {
 
 pub struct Crypt {
     inner: *mut sys::mongocrypt_t,
-    _log_handler: Option<Box<LogCb>>,
+    _cleanup: Vec<Box<dyn std::any::Any>>,
 }
 
 impl Drop for Crypt {
