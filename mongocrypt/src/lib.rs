@@ -87,7 +87,10 @@ impl CryptBuilder {
             // Safety: this pointer originates below with the same type and with a lifetime of that of the containing `MongoCrypt`.
             //let handler: &Box<LogCb> = unsafe { std::mem::transmute(ctx) };
             let handler = unsafe { &*(ctx as *const Box<LogCb>) };
-            handler(level, &message);
+            let _ = run_hook(|| {
+                handler(level, &message);
+                Ok(())
+            });
         }
 
         // Double-boxing is required because the inner `Box<dyn ..>` is represented as a fat pointer; the outer one is a thin pointer convertible to *c_void.
@@ -269,7 +272,6 @@ fn crypto_fn_shim(
         let mut out_bytes = unsafe { binary_bytes_mut(out)? };
         let buffer_len = out_bytes.len();
         let out_bytes_writer: &mut dyn Write = &mut out_bytes;
-        // FIXME: all hook shims need to catch panics
         let result = run_hook(|| (hook_fn(hooks))(key_bytes, iv_bytes, in_bytes, out_bytes_writer));
         let written = buffer_len - out_bytes.len();
         unsafe {
