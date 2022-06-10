@@ -1,4 +1,4 @@
-use std::{ffi::CStr, ptr, path::Path, io::Write};
+use std::{ffi::CStr, ptr, path::Path, io::Write, panic::{catch_unwind, UnwindSafe, AssertUnwindSafe}};
 
 use binary::BinaryRef;
 use bson::Document;
@@ -194,8 +194,8 @@ impl CryptBuilder {
         unsafe {
             if !sys::mongocrypt_setopt_crypto_hooks(
                 self.inner,
-                Some(crypto_fn_shim),
-                Some(crypto_fn_shim),
+                Some(aes_256_cbc_encrypt_shim),
+                Some(aes_256_cbc_decrypt_shim),
                 None,
                 None,
                 None,
@@ -231,7 +231,7 @@ impl Drop for CryptBuilder {
     }
 }
 
-type CryptoFn = Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()>>;
+type CryptoFn = Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe>;
 // This is exposed directly rather than created internal to CryptBuilder::crypto_hooks because
 // doing it that way ran into https://github.com/rust-lang/rust/issues/41078.
 pub struct CryptoHooks {
@@ -239,7 +239,8 @@ pub struct CryptoHooks {
     aes_256_cbc_decrypt: CryptoFn,
 }
 
-extern "C" fn crypto_fn_shim(
+fn crypto_fn_shim(
+    hook_fn: impl FnOnce(&CryptoHooks) -> &CryptoFn,
     ctx: *mut ::std::os::raw::c_void,
     key: *mut sys::mongocrypt_binary_t,
     iv: *mut sys::mongocrypt_binary_t,
@@ -256,8 +257,10 @@ extern "C" fn crypto_fn_shim(
         let in_bytes = unsafe { binary_bytes(in_)? };
         let mut out_bytes = unsafe { binary_bytes_mut(out)? };
         let buffer_len = out_bytes.len();
-        // FIXME: which function gets called needs to be parameterized somehow
-        let result = (hooks.aes_256_cbc_encrypt)(key_bytes, iv_bytes, in_bytes, &mut out_bytes);
+        let out_bytes_writer: &mut dyn Write = &mut out_bytes;
+        // FIXME: all hook shims need to catch panics
+        let result = catch_unwind(AssertUnwindSafe(|| (hook_fn(hooks))(key_bytes, iv_bytes, in_bytes, out_bytes_writer)))
+            .map_err(|_| error::internal!("panic in rust hook"))?;
         let written = buffer_len - out_bytes.len();
         unsafe {
             *bytes_written = written.try_into().map_err(|e| error::overflow!("buffer size overflow: {}", e))?;
@@ -291,6 +294,48 @@ extern "C" fn crypto_fn_shim(
     // The status is owned by the caller, so don't run cleanup.
     std::mem::forget(status);
     false
+}
+
+extern "C" fn aes_256_cbc_encrypt_shim(
+    ctx: *mut ::std::os::raw::c_void,
+    key: *mut sys::mongocrypt_binary_t,
+    iv: *mut sys::mongocrypt_binary_t,
+    in_: *mut sys::mongocrypt_binary_t,
+    out: *mut sys::mongocrypt_binary_t,
+    bytes_written: *mut u32,
+    c_status: *mut sys::mongocrypt_status_t,
+) -> bool {
+    crypto_fn_shim(
+        |hooks| &hooks.aes_256_cbc_encrypt,
+        ctx,
+        key,
+        iv,
+        in_,
+        out,
+        bytes_written,
+        c_status,
+    )
+}
+
+extern "C" fn aes_256_cbc_decrypt_shim(
+    ctx: *mut ::std::os::raw::c_void,
+    key: *mut sys::mongocrypt_binary_t,
+    iv: *mut sys::mongocrypt_binary_t,
+    in_: *mut sys::mongocrypt_binary_t,
+    out: *mut sys::mongocrypt_binary_t,
+    bytes_written: *mut u32,
+    c_status: *mut sys::mongocrypt_status_t,
+) -> bool {
+    crypto_fn_shim(
+        |hooks| &hooks.aes_256_cbc_decrypt,
+        ctx,
+        key,
+        iv,
+        in_,
+        out,
+        bytes_written,
+        c_status,
+    )
 }
 
 pub struct Crypt {
