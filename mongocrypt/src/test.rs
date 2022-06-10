@@ -22,6 +22,7 @@ fn builder_setopts() -> Result<()> {
         .crypto_hooks(CryptoHooks {
             aes_256_cbc_encrypt: Box::new(|_, _, _, _| Ok(())),
             aes_256_cbc_decrypt: Box::new(|_, _, _, _| Ok(())),
+            random: Box::new(|_, _| Ok(())),
         })?
     ;
     Ok(())

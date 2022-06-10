@@ -196,7 +196,7 @@ impl CryptBuilder {
                 self.inner,
                 Some(aes_256_cbc_encrypt_shim),
                 Some(aes_256_cbc_decrypt_shim),
-                None,
+                Some(random_shim),
                 None,
                 None,
                 None,
@@ -231,12 +231,23 @@ impl Drop for CryptBuilder {
     }
 }
 
+/// Parameters:
+/// * encryption key (32 bytes for AES_256)
+/// * initialization vector (16 bytes for AES_256)
+/// * the input
+/// * destination for output
 type CryptoFn = Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe>;
+/// Parameters:
+/// * destination for output
+/// * number of random bytes requested
+type RandomFn = Box<dyn Fn(&mut dyn Write, u32) -> CryptResult<()> + UnwindSafe>;
+
 // This is exposed directly rather than created internal to CryptBuilder::crypto_hooks because
 // doing it that way ran into https://github.com/rust-lang/rust/issues/41078.
 pub struct CryptoHooks {
     aes_256_cbc_encrypt: CryptoFn,
     aes_256_cbc_decrypt: CryptoFn,
+    random: RandomFn,
 }
 
 fn crypto_fn_shim(
@@ -259,14 +270,23 @@ fn crypto_fn_shim(
         let buffer_len = out_bytes.len();
         let out_bytes_writer: &mut dyn Write = &mut out_bytes;
         // FIXME: all hook shims need to catch panics
-        let result = catch_unwind(AssertUnwindSafe(|| (hook_fn(hooks))(key_bytes, iv_bytes, in_bytes, out_bytes_writer)))
-            .map_err(|_| error::internal!("panic in rust hook"))?;
+        let result = run_hook(|| (hook_fn(hooks))(key_bytes, iv_bytes, in_bytes, out_bytes_writer));
         let written = buffer_len - out_bytes.len();
         unsafe {
             *bytes_written = written.try_into().map_err(|e| error::overflow!("buffer size overflow: {}", e))?;
         }
-        result.map_err(Into::into)
+        result
     }();
+    write_status(result, c_status)
+}
+
+fn run_hook(hook: impl FnOnce() -> CryptResult<()>) -> Result<()> {
+    catch_unwind(AssertUnwindSafe(hook))
+        .map_err(|_| error::internal!("panic in rust hook"))?
+        .map_err(Into::into)
+}
+
+fn write_status(result: Result<()>, c_status: *mut sys::mongocrypt_status_t) -> bool {
     let err = match result {
         Ok(()) => return true,
         Err(Error { kind: ErrorKind::Crypt(ck), code, message }) => Error { kind: ck, code, message },
@@ -336,6 +356,20 @@ extern "C" fn aes_256_cbc_decrypt_shim(
         bytes_written,
         c_status,
     )
+}
+
+extern "C" fn random_shim(
+    ctx: *mut ::std::os::raw::c_void,
+    out: *mut sys::mongocrypt_binary_t,
+    count: u32,
+    status: *mut sys::mongocrypt_status_t,
+) -> bool {
+    let result = || -> Result<()> {
+        let hooks = unsafe { &*(ctx as *const CryptoHooks) };
+        let out_writer: &mut dyn Write = &mut unsafe { binary_bytes_mut(out)? };
+        run_hook(|| (hooks.random)(out_writer, count))
+    }();
+    write_status(result, status)
 }
 
 pub struct Crypt {
