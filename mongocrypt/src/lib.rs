@@ -189,84 +189,22 @@ impl CryptBuilder {
         self
     }
 
-    pub fn crypto_hooks(
-        mut self,
-        aes_256_cbc_encrypt: Option<impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + 'static>,
-    ) -> Result<Self> {
-        struct Hooks {
-            aes_256_cbc_encrypt: Option<Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()>>>,
-        }
-        extern "C" fn crypto_shim(
-            ctx: *mut ::std::os::raw::c_void,
-            key: *mut sys::mongocrypt_binary_t,
-            iv: *mut sys::mongocrypt_binary_t,
-            in_: *mut sys::mongocrypt_binary_t,
-            out: *mut sys::mongocrypt_binary_t,
-            bytes_written: *mut u32,
-            c_status: *mut sys::mongocrypt_status_t,
-        ) -> bool {
-            // Convenience scope for intermediate error propagation via `?`.
-            let result = || -> Result<()> {
-                let hooks = unsafe { &*(ctx as *const Hooks) };
-                let key_bytes = unsafe { binary_bytes(key)? };
-                let iv_bytes = unsafe { binary_bytes(iv)? };
-                let in_bytes = unsafe { binary_bytes(in_)? };
-                let mut out_bytes = unsafe { binary_bytes_mut(out)? };
-                let buffer_len = out_bytes.len();
-                let result = hooks.aes_256_cbc_encrypt.as_ref().unwrap()(key_bytes, iv_bytes, in_bytes, &mut out_bytes);
-                let written = buffer_len - out_bytes.len();
-                unsafe {
-                    *bytes_written = written.try_into().map_err(|e| error::overflow!("buffer size overflow: {}", e))?;
-                }
-                result.map_err(Into::into)
-            }();
-            let err = match result {
-                Ok(()) => return true,
-                Err(Error { kind: ErrorKind::Crypt(ck), code, message }) => Error { kind: ck, code, message },
-                // Map Rust-specific errors to Client with a message prefix.
-                Err(Error { kind, code, message }) => Error {
-                    kind: error::ErrorKindCrypt::Client,
-                    code,
-                    message: message.map(|s| format!("{:?}: {}", kind, s)),
-                }
-            };
-            let mut status = Status::from_native(c_status);
-            if let Err(status_err) = status.set(&err) {
-                eprintln!("Failed to record error:\noriginal error = {:?}\nstatus error = {:?}", err, status_err);
-                unsafe {
-                    // Set a hardcoded status that can't fail.
-                    sys::mongocrypt_status_set(
-                        c_status,
-                        sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
-                        0,
-                        b"Failed to record error, see logs for details\0".as_ptr() as *const i8,
-                        -1,
-                    );
-                }
-            }
-            false
-        }
-        let aes_256_cbc_encrypt = aes_256_cbc_encrypt.map(|f| {
-            let b: Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()>> = Box::new(f);
-            b
-        });
-        let mut hooks = Box::new(Hooks {
-            aes_256_cbc_encrypt,
-        });
+    pub fn crypto_hooks(mut self, hooks: CryptoHooks) -> Result<Self> {
         // This is needed to give the typechecker a nudge in the right direction.
         fn opt_match<A, B>(a: &Option<A>, b: B) -> Option<B> {
             a.as_ref().map(|_| b)
         }
+        let hooks = Box::new(hooks);
         unsafe {
             if !sys::mongocrypt_setopt_crypto_hooks(
                 self.inner,
-                opt_match(&hooks.aes_256_cbc_encrypt, crypto_shim),
+                opt_match(&hooks.aes_256_cbc_encrypt, crypto_fn_shim),
+                opt_match(&hooks.aes_256_cbc_decrypt, crypto_fn_shim),
                 None,
                 None,
                 None,
                 None,
-                None,
-                &mut *hooks as *mut Hooks as *mut std::ffi::c_void,
+                &*hooks as *const CryptoHooks as *mut std::ffi::c_void,
             ) {
                 return Err(self.status().as_error());
             }
@@ -295,6 +233,74 @@ impl Drop for CryptBuilder {
             unsafe { sys::mongocrypt_destroy(self.inner); }
         }
     }
+}
+
+type CryptoFn = Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()>>;
+// This is exposed directly rather than created internal to CryptBuilder::crypto_hooks because
+// doing it that way ran into https://github.com/rust-lang/rust/issues/41078.
+pub struct CryptoHooks {
+    aes_256_cbc_encrypt: Option<CryptoFn>,
+    aes_256_cbc_decrypt: Option<CryptoFn>,
+}
+
+impl Default for CryptoHooks {
+    fn default() -> Self {
+        Self {
+            aes_256_cbc_encrypt: None,
+            aes_256_cbc_decrypt: None,
+        }
+    }
+} 
+
+extern "C" fn crypto_fn_shim(
+    ctx: *mut ::std::os::raw::c_void,
+    key: *mut sys::mongocrypt_binary_t,
+    iv: *mut sys::mongocrypt_binary_t,
+    in_: *mut sys::mongocrypt_binary_t,
+    out: *mut sys::mongocrypt_binary_t,
+    bytes_written: *mut u32,
+    c_status: *mut sys::mongocrypt_status_t,
+) -> bool {
+    // Convenience scope for intermediate error propagation via `?`.
+    let result = || -> Result<()> {
+        let hooks = unsafe { &*(ctx as *const CryptoHooks) };
+        let key_bytes = unsafe { binary_bytes(key)? };
+        let iv_bytes = unsafe { binary_bytes(iv)? };
+        let in_bytes = unsafe { binary_bytes(in_)? };
+        let mut out_bytes = unsafe { binary_bytes_mut(out)? };
+        let buffer_len = out_bytes.len();
+        let result = hooks.aes_256_cbc_encrypt.as_ref().unwrap()(key_bytes, iv_bytes, in_bytes, &mut out_bytes);
+        let written = buffer_len - out_bytes.len();
+        unsafe {
+            *bytes_written = written.try_into().map_err(|e| error::overflow!("buffer size overflow: {}", e))?;
+        }
+        result.map_err(Into::into)
+    }();
+    let err = match result {
+        Ok(()) => return true,
+        Err(Error { kind: ErrorKind::Crypt(ck), code, message }) => Error { kind: ck, code, message },
+        // Map Rust-specific errors to Client with a message prefix.
+        Err(Error { kind, code, message }) => Error {
+            kind: error::ErrorKindCrypt::Client,
+            code,
+            message: message.map(|s| format!("{:?}: {}", kind, s)),
+        }
+    };
+    let mut status = Status::from_native(c_status);
+    if let Err(status_err) = status.set(&err) {
+        eprintln!("Failed to record error:\noriginal error = {:?}\nstatus error = {:?}", err, status_err);
+        unsafe {
+            // Set a hardcoded status that can't fail.
+            sys::mongocrypt_status_set(
+                c_status,
+                sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
+                0,
+                b"Failed to record error, see logs for details\0".as_ptr() as *const i8,
+                -1,
+            );
+        }
+    }
+    false
 }
 
 pub struct Crypt {
