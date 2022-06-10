@@ -190,16 +190,12 @@ impl CryptBuilder {
     }
 
     pub fn crypto_hooks(mut self, hooks: CryptoHooks) -> Result<Self> {
-        // This is needed to give the typechecker a nudge in the right direction.
-        fn opt_match<A, B>(a: &Option<A>, b: B) -> Option<B> {
-            a.as_ref().map(|_| b)
-        }
         let hooks = Box::new(hooks);
         unsafe {
             if !sys::mongocrypt_setopt_crypto_hooks(
                 self.inner,
-                opt_match(&hooks.aes_256_cbc_encrypt, crypto_fn_shim),
-                opt_match(&hooks.aes_256_cbc_decrypt, crypto_fn_shim),
+                Some(crypto_fn_shim),
+                Some(crypto_fn_shim),
                 None,
                 None,
                 None,
@@ -239,18 +235,9 @@ type CryptoFn = Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<(
 // This is exposed directly rather than created internal to CryptBuilder::crypto_hooks because
 // doing it that way ran into https://github.com/rust-lang/rust/issues/41078.
 pub struct CryptoHooks {
-    aes_256_cbc_encrypt: Option<CryptoFn>,
-    aes_256_cbc_decrypt: Option<CryptoFn>,
+    aes_256_cbc_encrypt: CryptoFn,
+    aes_256_cbc_decrypt: CryptoFn,
 }
-
-impl Default for CryptoHooks {
-    fn default() -> Self {
-        Self {
-            aes_256_cbc_encrypt: None,
-            aes_256_cbc_decrypt: None,
-        }
-    }
-} 
 
 extern "C" fn crypto_fn_shim(
     ctx: *mut ::std::os::raw::c_void,
@@ -269,7 +256,8 @@ extern "C" fn crypto_fn_shim(
         let in_bytes = unsafe { binary_bytes(in_)? };
         let mut out_bytes = unsafe { binary_bytes_mut(out)? };
         let buffer_len = out_bytes.len();
-        let result = hooks.aes_256_cbc_encrypt.as_ref().unwrap()(key_bytes, iv_bytes, in_bytes, &mut out_bytes);
+        // FIXME: which function gets called needs to be parameterized somehow
+        let result = (hooks.aes_256_cbc_encrypt)(key_bytes, iv_bytes, in_bytes, &mut out_bytes);
         let written = buffer_len - out_bytes.len();
         unsafe {
             *bytes_written = written.try_into().map_err(|e| error::overflow!("buffer size overflow: {}", e))?;
@@ -300,6 +288,8 @@ extern "C" fn crypto_fn_shim(
             );
         }
     }
+    // The status is owned by the caller, so don't run cleanup.
+    std::mem::forget(status);
     false
 }
 

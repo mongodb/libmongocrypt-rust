@@ -20,9 +20,8 @@ fn builder_setopts() -> Result<()> {
         .set_crypt_shared_lib_path_override(Path::new("$ORIGIN"))?
         .use_need_kms_credentials_state()
         .crypto_hooks(CryptoHooks {
-            aes_256_cbc_encrypt: Some(Box::new(|_, _, _, _| Ok(()))),
-            aes_256_cbc_decrypt: Some(Box::new(|_, _, _, _| Ok(()))),
-            ..CryptoHooks::default()
+            aes_256_cbc_encrypt: Box::new(|_, _, _, _| Ok(())),
+            aes_256_cbc_decrypt: Box::new(|_, _, _, _| Ok(())),
         })?
     ;
     Ok(())
