@@ -128,6 +128,13 @@ impl CryptBuilder {
         self
     }
 
+    pub fn bypass_query_analysis(self) -> Self {
+        unsafe {
+            sys::mongocrypt_setopt_bypass_query_analysis(self.inner);
+        }
+        self
+    }
+
     pub fn build(mut self) -> Result<Crypt> {
         let ok = unsafe { sys::mongocrypt_init(self.inner) };
         if !ok {

@@ -3,6 +3,7 @@ use std::path::Path;
 use bson::doc;
 
 use crate::CryptBuilder;
+use crate::ctx::{Algorithm, IndexType, QueryType};
 use crate::error::Result;
 
 mod binary;
@@ -33,6 +34,7 @@ fn builder_setopts() -> Result<()> {
         )?
         .aes_256_ecb(|_, _, _, _| Ok(()))?
         .crypto_hook_sign_rsassa_pkcs1_v1_5(|_, _, _| Ok(()))?
+        .bypass_query_analysis()
     ;
     Ok(())
 }
@@ -52,5 +54,28 @@ fn crypt_shared_lib_version() -> Result<()> {
         .build()?;
     assert_eq!(None, crypt.shared_lib_version());
     assert_eq!(None, crypt.shared_lib_version_string());
+    Ok(())
+}
+
+#[test]
+fn ctx_setopts() -> Result<()> {
+    let crypt = CryptBuilder::new()
+        .kms_provider_aws("example", "example")?
+        .build()?;
+
+    let builder = crypt.ctx_builder();
+    builder
+        .key_id(&bson::Uuid::new())?
+        .key_alt_name("test")?
+        .key_material(&[0; 96])?
+        .algorithm(Algorithm::AeadAes256CbcHmacSha512Deterministic)?
+        .masterkey_aws("somewhere", "something")?
+        .masterkey_aws_endpoint("example.com")?
+        .index_type(IndexType::Equality)?
+        .contention_factor(10)?
+        .index_key_id(&bson::Uuid::new())?
+        .query_type(QueryType::Equality)?
+    ;
+
     Ok(())
 }

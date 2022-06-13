@@ -120,6 +120,44 @@ impl CtxBuilder {
         }
     }
 
+    pub fn index_type(self, index_type: IndexType) -> Result<Self> {
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_index_type(self.inner, index_type.as_native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn contention_factor(self, contention_factor: i64) -> Result<Self> {
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_contention_factor(self.inner, contention_factor) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn index_key_id(self, key_id: &bson::Uuid) -> Result<Self> {
+        let bytes = key_id.bytes();
+        let bin = BinaryRef::new(&bytes);
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_index_key_id(self.inner, bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn query_type(self, query_type: QueryType) -> Result<Self> {
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_query_type(self.inner, query_type.as_native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self)
+    }
+
     fn into_ctx(mut self) -> Ctx {
         let out = Ctx { inner: self.inner };
         self.inner = ptr::null_mut();
@@ -205,6 +243,36 @@ impl Algorithm {
             Self::AeadAes256CbcHmacSha512Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
         };
         unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[non_exhaustive]
+pub enum IndexType {
+    None,
+    Equality,
+}
+
+impl IndexType {
+    fn as_native(self) -> sys::mongocrypt_index_type_t {
+        match self {
+            IndexType::None => sys::mongocrypt_index_type_t_MONGOCRYPT_INDEX_TYPE_NONE,
+            IndexType::Equality => sys::mongocrypt_index_type_t_MONGOCRYPT_INDEX_TYPE_EQUALITY,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[non_exhaustive]
+pub enum QueryType {
+    Equality,
+}
+
+impl QueryType {
+    fn as_native(self) -> sys::mongocrypt_query_type_t {
+        match self {
+            QueryType::Equality => sys::mongocrypt_query_type_t_MONGOCRYPT_QUERY_TYPE_EQUALITY,
+        }
     }
 }
 
