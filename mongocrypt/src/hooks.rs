@@ -137,6 +137,36 @@ impl CryptBuilder {
         self.cleanup.push(hooks);
         Ok(self)
     }
+
+    pub fn aes_256_ecb(
+        mut self,
+        aes_256_ecb_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+    ) -> Result<Self> {
+        let hook: Box<CryptoFn> = Box::new(Box::new(aes_256_ecb_encrypt));
+        extern "C" fn shim(
+            ctx: *mut ::std::os::raw::c_void,
+            key: *mut sys::mongocrypt_binary_t,
+            iv: *mut sys::mongocrypt_binary_t,
+            in_: *mut sys::mongocrypt_binary_t,
+            out: *mut sys::mongocrypt_binary_t,
+            bytes_written: *mut u32,
+            status: *mut sys::mongocrypt_status_t,    
+        ) -> bool {
+            let hook = unsafe { &*(ctx as *const CryptoFn) };
+            crypto_fn_shim(hook, key, iv, in_, out, bytes_written, status)
+        }
+        unsafe {
+            if !sys::mongocrypt_setopt_aes_256_ecb(
+                self.inner,
+                Some(shim),
+                &*hook as *const CryptoFn as *mut std::ffi::c_void,
+            ) {
+                return Err(self.status().as_error());
+            }
+        }
+        self.cleanup.push(hook);
+        Ok(self)
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
