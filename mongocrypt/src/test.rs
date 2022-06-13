@@ -32,6 +32,7 @@ fn builder_setopts() -> Result<()> {
             |_, _, _, _| Ok(()),
         )?
         .aes_256_ecb(|_, _, _, _| Ok(()))?
+        .crypto_hook_sign_rsassa_pkcs1_v1_5(|_, _, _| Ok(()))?
     ;
     Ok(())
 }

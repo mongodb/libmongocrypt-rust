@@ -167,6 +167,34 @@ impl CryptBuilder {
         self.cleanup.push(hook);
         Ok(self)
     }
+
+    pub fn crypto_hook_sign_rsassa_pkcs1_v1_5(
+        mut self,
+        sign_rsaes_pkcs1_v1_5: impl Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+    ) -> Result<Self> {
+        let hook: Box<HmacFn> = Box::new(Box::new(sign_rsaes_pkcs1_v1_5));
+        extern "C" fn shim(
+            ctx: *mut ::std::os::raw::c_void,
+            key: *mut sys::mongocrypt_binary_t,
+            in_: *mut sys::mongocrypt_binary_t,
+            out: *mut sys::mongocrypt_binary_t,
+            status: *mut sys::mongocrypt_status_t,
+        ) -> bool {
+            let hook = unsafe { &*(ctx as *const HmacFn) };
+            hmac_fn_shim(hook, key, in_, out, status)
+        }
+        unsafe {
+            if !sys::mongocrypt_setopt_crypto_hook_sign_rsaes_pkcs1_v1_5(
+                self.inner,
+                Some(shim),
+                &*hook as *const HmacFn as *mut std::ffi::c_void,
+            ) {
+                return Err(self.status().as_error());
+            }
+        }
+        self.cleanup.push(hook);
+        Ok(self)
+    }
 }
 
 #[derive(PartialEq, Eq, Debug, Clone, Copy)]
