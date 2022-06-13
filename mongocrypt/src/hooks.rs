@@ -6,9 +6,9 @@ use mongocrypt_sys as sys;
 
 impl CryptBuilder {
     pub fn log_handler<F>(mut self, handler: F) -> Result<Self>
-        where F: Fn(LogLevel, &str) + 'static
+        where F: Fn(LogLevel, &str) + 'static + UnwindSafe
     {
-        type LogCb = dyn Fn(LogLevel, &str);
+        type LogCb = dyn Fn(LogLevel, &str) + UnwindSafe;
 
         extern "C" fn log_shim(
             c_level: sys::mongocrypt_log_level_t,
@@ -22,10 +22,10 @@ impl CryptBuilder {
             // Safety: this pointer originates below with the same type and with a lifetime of that of the containing `MongoCrypt`.
             //let handler: &Box<LogCb> = unsafe { std::mem::transmute(ctx) };
             let handler = unsafe { &*(ctx as *const Box<LogCb>) };
-            let _ = run_hook(|| {
+            let _ = run_hook(AssertUnwindSafe(|| {
                 handler(level, &message);
                 Ok(())
-            });
+            }));
         }
 
         // Double-boxing is required because the inner `Box<dyn ..>` is represented as a fat pointer; the outer one is a thin pointer convertible to *c_void.
@@ -50,7 +50,7 @@ impl CryptBuilder {
                 Some(aes_256_cbc_encrypt_shim),
                 Some(aes_256_cbc_decrypt_shim),
                 Some(random_shim),
-                None,
+                Some(hmac_sha_512_shim),
                 None,
                 None,
                 &*hooks as *const CryptoHooks as *mut std::ffi::c_void,
@@ -90,8 +90,8 @@ impl LogLevel {
     }
 }
 
-fn run_hook(hook: impl FnOnce() -> CryptResult<()>) -> Result<()> {
-    catch_unwind(AssertUnwindSafe(hook))
+fn run_hook(hook: impl FnOnce() -> CryptResult<()> + UnwindSafe) -> Result<()> {
+    catch_unwind(hook)
         .map_err(|_| error::internal!("panic in rust hook"))?
         .map_err(Into::into)
 }
@@ -106,6 +106,11 @@ type CryptoFn = Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<(
 /// * destination for output
 /// * number of random bytes requested
 type RandomFn = Box<dyn Fn(&mut dyn Write, u32) -> CryptResult<()> + UnwindSafe>;
+/// Parameters:
+/// * encryption key (32 bytes for HMAC_SHA512)
+/// * the input
+/// * destination for output
+type HmacFn = Box<dyn Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe>;
 
 // This is exposed directly rather than created internal to CryptBuilder::crypto_hooks because
 // doing it that way ran into https://github.com/rust-lang/rust/issues/41078.
@@ -113,6 +118,7 @@ pub struct CryptoHooks {
     pub aes_256_cbc_encrypt: CryptoFn,
     pub aes_256_cbc_decrypt: CryptoFn,
     pub random: RandomFn,
+    pub hmac_sha_512: HmacFn,
 }
 
 fn crypto_fn_shim(
@@ -134,10 +140,10 @@ fn crypto_fn_shim(
         let mut out_bytes = unsafe { binary_bytes_mut(out)? };
         let buffer_len = out_bytes.len();
         let out_bytes_writer: &mut dyn Write = &mut out_bytes;
-        let result = run_hook(|| (hook_fn(hooks))(key_bytes, iv_bytes, in_bytes, out_bytes_writer));
+        let result = run_hook(AssertUnwindSafe(|| (hook_fn(hooks))(key_bytes, iv_bytes, in_bytes, out_bytes_writer)));
         let written = buffer_len - out_bytes.len();
         unsafe {
-            *bytes_written = written.try_into().map_err(|e| error::overflow!("buffer size overflow: {}", e))?;
+            *bytes_written = written.try_into()?;
         }
         result
     }();
@@ -225,7 +231,35 @@ extern "C" fn random_shim(
     let result = || -> Result<()> {
         let hooks = unsafe { &*(ctx as *const CryptoHooks) };
         let out_writer: &mut dyn Write = &mut unsafe { binary_bytes_mut(out)? };
-        run_hook(|| (hooks.random)(out_writer, count))
+        run_hook(AssertUnwindSafe(|| (hooks.random)(out_writer, count)))
     }();
     write_status(result, status)
+}
+
+fn hmac_fn_shim(
+    hook_fn: impl FnOnce(&CryptoHooks) -> &HmacFn,
+    ctx: *mut ::std::os::raw::c_void,
+    key: *mut sys::mongocrypt_binary_t,
+    in_: *mut sys::mongocrypt_binary_t,
+    out: *mut sys::mongocrypt_binary_t,
+    c_status: *mut sys::mongocrypt_status_t,
+) -> bool {
+    let result = || -> Result<()> {
+        let hooks = unsafe { &*(ctx as *const CryptoHooks) };
+        let key_bytes = unsafe { binary_bytes(key)? };
+        let in_bytes = unsafe { binary_bytes(in_)? };
+        let out_writer: &mut dyn Write = &mut unsafe { binary_bytes_mut(out)? };
+        run_hook(AssertUnwindSafe(|| hook_fn(hooks)(key_bytes, in_bytes, out_writer)))
+    }();
+    write_status(result, c_status)
+}
+
+extern "C" fn hmac_sha_512_shim(
+    ctx: *mut ::std::os::raw::c_void,
+    key: *mut sys::mongocrypt_binary_t,
+    in_: *mut sys::mongocrypt_binary_t,
+    out: *mut sys::mongocrypt_binary_t,
+    c_status: *mut sys::mongocrypt_status_t,
+) -> bool {
+    hmac_fn_shim(|hooks| &hooks.hmac_sha_512, ctx, key, in_, out, c_status)
 }
