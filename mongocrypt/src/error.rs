@@ -49,6 +49,18 @@ impl From<Error<ErrorKindCrypt>> for Error<ErrorKind> {
     }
 }
 
+impl From<std::num::TryFromIntError> for Error<ErrorKind> {
+    fn from(err: std::num::TryFromIntError) -> Self {
+        overflow!("size overflow: {}", err)
+    }
+}
+
+impl From<std::str::Utf8Error> for Error<ErrorKind> {
+    fn from(err: std::str::Utf8Error) -> Self {
+        encoding!("invalid string: {}", err)
+    }
+}
+
 macro_rules! internal {
     ($($arg:tt)*) => {{
         crate::error::Error {

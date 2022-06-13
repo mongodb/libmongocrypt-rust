@@ -3,7 +3,7 @@ use std::{ptr, ffi::CStr, marker::PhantomData};
 use bson::{doc, Document, RawDocument};
 use mongocrypt_sys as sys;
 
-use crate::{binary::{BinaryRef, Binary}, error::{HasStatus, Result, self}, convert::{doc_binary, str_bytes_len, rawdoc, c_str}};
+use crate::{binary::{BinaryRef, Binary}, error::{HasStatus, Result, self}, convert::{doc_binary, str_bytes_len, rawdoc}};
 
 pub struct CtxBuilder {
     inner: *mut sys::mongocrypt_ctx_t,
@@ -392,7 +392,7 @@ impl<'scope> KmsCtx<'scope> {
             if !sys::mongocrypt_kms_ctx_endpoint(self.inner, &mut ptr as *mut *const ::std::os::raw::c_char) {
                 return Err(self.status().as_error());
             }
-            c_str(ptr)
+            Ok(CStr::from_ptr(ptr).to_str()?)
         }
     }
 
@@ -415,7 +415,7 @@ impl<'scope> KmsCtx<'scope> {
     pub fn get_kms_provider(&self) -> Result<&'static str> {
         unsafe {
             let ptr = sys::mongocrypt_kms_ctx_get_kms_provider(self.inner, ptr::null_mut());
-            c_str(ptr)
+            Ok(CStr::from_ptr(ptr).to_str()?)
         }
     }
 }
