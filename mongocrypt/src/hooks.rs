@@ -42,7 +42,6 @@ impl CryptBuilder {
         Ok(self)
     }
 
-    //pub fn crypto_hooks(mut self, hooks: CryptoHooks) -> Result<Self> {
     pub fn crypto_hooks<
         Aes256CbcEncrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
         Aes256CbcDecrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
@@ -77,6 +76,60 @@ impl CryptBuilder {
                 Some(hmac_sha_256_shim),
                 Some(sha_256_shim),
                 &*hooks as *const CryptoHooks as *mut std::ffi::c_void,
+            ) {
+                return Err(self.status().as_error());
+            }
+        }
+        self.cleanup.push(hooks);
+        Ok(self)
+    }
+
+    pub fn aes_256_ctr<
+        Aes256CtrEncrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+        Aes256CtrDecrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+    >(
+        mut self,
+        aes_256_ctr_encrypt: Aes256CtrEncrypt,
+        aes_256_ctr_decrypt: Aes256CtrDecrypt,
+    ) -> Result<Self> {
+        struct Hooks {
+            aes_256_ctr_encrypt: CryptoFn,
+            aes_256_ctr_decrypt: CryptoFn,
+        }
+        let hooks = Box::new(Hooks {
+            aes_256_ctr_encrypt: Box::new(aes_256_ctr_encrypt),
+            aes_256_ctr_decrypt: Box::new(aes_256_ctr_decrypt),
+        });
+        extern "C" fn aes_256_ctr_encrypt_shim(
+            ctx: *mut ::std::os::raw::c_void,
+            key: *mut sys::mongocrypt_binary_t,
+            iv: *mut sys::mongocrypt_binary_t,
+            in_: *mut sys::mongocrypt_binary_t,
+            out: *mut sys::mongocrypt_binary_t,
+            bytes_written: *mut u32,
+            status: *mut sys::mongocrypt_status_t,    
+        ) -> bool {
+            let hooks = unsafe { &*(ctx as *const Hooks) };
+            crypto_fn_shim(&hooks.aes_256_ctr_encrypt, key, iv, in_, out, bytes_written, status)
+        }
+        extern "C" fn aes_256_ctr_decrypt_shim(
+            ctx: *mut ::std::os::raw::c_void,
+            key: *mut sys::mongocrypt_binary_t,
+            iv: *mut sys::mongocrypt_binary_t,
+            in_: *mut sys::mongocrypt_binary_t,
+            out: *mut sys::mongocrypt_binary_t,
+            bytes_written: *mut u32,
+            status: *mut sys::mongocrypt_status_t,    
+        ) -> bool {
+            let hooks = unsafe { &*(ctx as *const Hooks) };
+            crypto_fn_shim(&hooks.aes_256_ctr_decrypt, key, iv, in_, out, bytes_written, status)
+        }
+        unsafe {
+            if !sys::mongocrypt_setopt_aes_256_ctr(
+                self.inner,
+                Some(aes_256_ctr_encrypt_shim),
+                Some(aes_256_ctr_decrypt_shim),
+                &*hooks as *const Hooks as *mut std::ffi::c_void,
             ) {
                 return Err(self.status().as_error());
             }
@@ -139,8 +192,6 @@ type HmacFn = Box<dyn Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()> + Unwi
 /// * destination for output
 type HashFn = Box<dyn Fn(&[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe>;
 
-// This is exposed directly rather than created internal to CryptBuilder::crypto_hooks because
-// doing it that way ran into https://github.com/rust-lang/rust/issues/41078.
 struct CryptoHooks {
     aes_256_cbc_encrypt: CryptoFn,
     random: RandomFn,
@@ -149,7 +200,6 @@ struct CryptoHooks {
     hmac_sha_256: HmacFn,
     sha_256: HashFn,
 }
-
 
 fn crypto_fn_shim(
     hook_fn: &CryptoFn,
