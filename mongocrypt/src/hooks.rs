@@ -51,8 +51,8 @@ impl CryptBuilder {
                 Some(aes_256_cbc_decrypt_shim),
                 Some(random_shim),
                 Some(hmac_sha_512_shim),
-                None,
-                None,
+                Some(hmac_sha_256_shim),
+                Some(sha_256_shim),
                 &*hooks as *const CryptoHooks as *mut std::ffi::c_void,
             ) {
                 return Err(self.status().as_error());
@@ -111,6 +111,10 @@ type RandomFn = Box<dyn Fn(&mut dyn Write, u32) -> CryptResult<()> + UnwindSafe>
 /// * the input
 /// * destination for output
 type HmacFn = Box<dyn Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe>;
+/// Parameters
+/// * the input
+/// * destination for output
+type HashFn = Box<dyn Fn(&[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe>;
 
 // This is exposed directly rather than created internal to CryptBuilder::crypto_hooks because
 // doing it that way ran into https://github.com/rust-lang/rust/issues/41078.
@@ -119,6 +123,8 @@ pub struct CryptoHooks {
     pub aes_256_cbc_decrypt: CryptoFn,
     pub random: RandomFn,
     pub hmac_sha_512: HmacFn,
+    pub hmac_sha_256: HmacFn,
+    pub sha_256: HashFn,
 }
 
 fn crypto_fn_shim(
@@ -262,4 +268,29 @@ extern "C" fn hmac_sha_512_shim(
     c_status: *mut sys::mongocrypt_status_t,
 ) -> bool {
     hmac_fn_shim(|hooks| &hooks.hmac_sha_512, ctx, key, in_, out, c_status)
+}
+
+extern "C" fn hmac_sha_256_shim(
+    ctx: *mut ::std::os::raw::c_void,
+    key: *mut sys::mongocrypt_binary_t,
+    in_: *mut sys::mongocrypt_binary_t,
+    out: *mut sys::mongocrypt_binary_t,
+    c_status: *mut sys::mongocrypt_status_t,
+) -> bool {
+    hmac_fn_shim(|hooks| &hooks.hmac_sha_256, ctx, key, in_, out, c_status)
+}
+
+extern "C" fn sha_256_shim(
+    ctx: *mut ::std::os::raw::c_void,
+    in_: *mut sys::mongocrypt_binary_t,
+    out: *mut sys::mongocrypt_binary_t,
+    status: *mut sys::mongocrypt_status_t,
+) -> bool {
+    let hooks = unsafe { &*(ctx as *const CryptoHooks) };
+    let result = || -> Result<()> {
+        let in_bytes = unsafe { binary_bytes(in_)? };
+        let out_writer: &mut dyn Write = &mut unsafe { binary_bytes_mut(out)? };
+        run_hook(AssertUnwindSafe(|| (hooks.sha_256)(in_bytes, out_writer)))
+    }();
+    write_status(result, status)
 }
