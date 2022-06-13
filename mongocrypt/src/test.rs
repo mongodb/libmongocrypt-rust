@@ -2,7 +2,7 @@ use std::path::Path;
 
 use bson::doc;
 
-use crate::{CryptBuilder, CryptoHooks};
+use crate::CryptBuilder;
 use crate::error::Result;
 
 mod binary;
@@ -19,14 +19,14 @@ fn builder_setopts() -> Result<()> {
         .append_crypt_shared_lib_search_path(Path::new("$SYSTEM"))?
         .set_crypt_shared_lib_path_override(Path::new("$ORIGIN"))?
         .use_need_kms_credentials_state()
-        .crypto_hooks(CryptoHooks {
-            aes_256_cbc_encrypt: Box::new(|_, _, _, _| Ok(())),
-            aes_256_cbc_decrypt: Box::new(|_, _, _, _| Ok(())),
-            random: Box::new(|_, _| Ok(())),
-            hmac_sha_512: Box::new(|_, _, _| Ok(())),
-            hmac_sha_256: Box::new(|_, _, _| Ok(())),
-            sha_256: Box::new(|_, _| Ok(())),
-        })?
+        .crypto_hooks(
+            |_, _, _, _| Ok(()),
+            |_, _, _, _| Ok(()),
+            |_, _| Ok(()),
+            |_, _, _| Ok(()),
+            |_, _, _| Ok(()),
+            |_, _| Ok(()),
+        )?
     ;
     Ok(())
 }

@@ -42,8 +42,31 @@ impl CryptBuilder {
         Ok(self)
     }
 
-    pub fn crypto_hooks(mut self, hooks: CryptoHooks) -> Result<Self> {
-        let hooks = Box::new(hooks);
+    //pub fn crypto_hooks(mut self, hooks: CryptoHooks) -> Result<Self> {
+    pub fn crypto_hooks<
+        Aes256CbcEncrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+        Aes256CbcDecrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+        Random: Fn(&mut dyn Write, u32) -> CryptResult<()> + UnwindSafe + 'static,
+        HmacSha512: Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+        HmacSha256: Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+        Sha256: Fn(&[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+    >(
+        mut self,
+        aes_256_cbc_encrypt: Aes256CbcEncrypt,
+        aes_256_cbc_decrypt: Aes256CbcDecrypt,
+        random: Random,
+        hmac_sha_512: HmacSha512,
+        hmac_sha_256: HmacSha256,
+        sha_256: Sha256,
+    ) -> Result<Self> {
+        let hooks = Box::new(CryptoHooks {
+            aes_256_cbc_encrypt: Box::new(aes_256_cbc_encrypt),
+            aes_256_cbc_decrypt: Box::new(aes_256_cbc_decrypt),
+            random: Box::new(random),
+            hmac_sha_512: Box::new(hmac_sha_512),
+            hmac_sha_256: Box::new(hmac_sha_256),
+            sha_256: Box::new(sha_256),
+        });
         unsafe {
             if !sys::mongocrypt_setopt_crypto_hooks(
                 self.inner,
@@ -118,14 +141,15 @@ type HashFn = Box<dyn Fn(&[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe>
 
 // This is exposed directly rather than created internal to CryptBuilder::crypto_hooks because
 // doing it that way ran into https://github.com/rust-lang/rust/issues/41078.
-pub struct CryptoHooks {
-    pub aes_256_cbc_encrypt: CryptoFn,
-    pub aes_256_cbc_decrypt: CryptoFn,
-    pub random: RandomFn,
-    pub hmac_sha_512: HmacFn,
-    pub hmac_sha_256: HmacFn,
-    pub sha_256: HashFn,
+struct CryptoHooks {
+    aes_256_cbc_encrypt: CryptoFn,
+    random: RandomFn,
+    hmac_sha_512: HmacFn,
+    aes_256_cbc_decrypt: CryptoFn,
+    hmac_sha_256: HmacFn,
+    sha_256: HashFn,
 }
+
 
 fn crypto_fn_shim(
     hook_fn: &CryptoFn,
