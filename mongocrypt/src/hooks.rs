@@ -128,8 +128,7 @@ pub struct CryptoHooks {
 }
 
 fn crypto_fn_shim(
-    hook_fn: impl FnOnce(&CryptoHooks) -> &CryptoFn,
-    ctx: *mut ::std::os::raw::c_void,
+    hook_fn: &CryptoFn,
     key: *mut sys::mongocrypt_binary_t,
     iv: *mut sys::mongocrypt_binary_t,
     in_: *mut sys::mongocrypt_binary_t,
@@ -139,14 +138,13 @@ fn crypto_fn_shim(
 ) -> bool {
     // Convenience scope for intermediate error propagation via `?`.
     let result = || -> Result<()> {
-        let hooks = unsafe { &*(ctx as *const CryptoHooks) };
         let key_bytes = unsafe { binary_bytes(key)? };
         let iv_bytes = unsafe { binary_bytes(iv)? };
         let in_bytes = unsafe { binary_bytes(in_)? };
         let mut out_bytes = unsafe { binary_bytes_mut(out)? };
         let buffer_len = out_bytes.len();
         let out_bytes_writer: &mut dyn Write = &mut out_bytes;
-        let result = run_hook(AssertUnwindSafe(|| (hook_fn(hooks))(key_bytes, iv_bytes, in_bytes, out_bytes_writer)));
+        let result = run_hook(AssertUnwindSafe(|| hook_fn(key_bytes, iv_bytes, in_bytes, out_bytes_writer)));
         let written = buffer_len - out_bytes.len();
         unsafe {
             *bytes_written = written.try_into()?;
@@ -195,9 +193,9 @@ extern "C" fn aes_256_cbc_encrypt_shim(
     bytes_written: *mut u32,
     c_status: *mut sys::mongocrypt_status_t,
 ) -> bool {
+    let hooks = unsafe { &*(ctx as *const CryptoHooks) };
     crypto_fn_shim(
-        |hooks| &hooks.aes_256_cbc_encrypt,
-        ctx,
+        &hooks.aes_256_cbc_encrypt,
         key,
         iv,
         in_,
@@ -216,9 +214,9 @@ extern "C" fn aes_256_cbc_decrypt_shim(
     bytes_written: *mut u32,
     c_status: *mut sys::mongocrypt_status_t,
 ) -> bool {
+    let hooks = unsafe { &*(ctx as *const CryptoHooks) };
     crypto_fn_shim(
-        |hooks| &hooks.aes_256_cbc_decrypt,
-        ctx,
+        &hooks.aes_256_cbc_decrypt,
         key,
         iv,
         in_,
@@ -243,19 +241,17 @@ extern "C" fn random_shim(
 }
 
 fn hmac_fn_shim(
-    hook_fn: impl FnOnce(&CryptoHooks) -> &HmacFn,
-    ctx: *mut ::std::os::raw::c_void,
+    hook_fn: &HmacFn,
     key: *mut sys::mongocrypt_binary_t,
     in_: *mut sys::mongocrypt_binary_t,
     out: *mut sys::mongocrypt_binary_t,
     c_status: *mut sys::mongocrypt_status_t,
 ) -> bool {
     let result = || -> Result<()> {
-        let hooks = unsafe { &*(ctx as *const CryptoHooks) };
         let key_bytes = unsafe { binary_bytes(key)? };
         let in_bytes = unsafe { binary_bytes(in_)? };
         let out_writer: &mut dyn Write = &mut unsafe { binary_bytes_mut(out)? };
-        run_hook(AssertUnwindSafe(|| hook_fn(hooks)(key_bytes, in_bytes, out_writer)))
+        run_hook(AssertUnwindSafe(|| hook_fn(key_bytes, in_bytes, out_writer)))
     }();
     write_status(result, c_status)
 }
@@ -267,7 +263,8 @@ extern "C" fn hmac_sha_512_shim(
     out: *mut sys::mongocrypt_binary_t,
     c_status: *mut sys::mongocrypt_status_t,
 ) -> bool {
-    hmac_fn_shim(|hooks| &hooks.hmac_sha_512, ctx, key, in_, out, c_status)
+    let hooks = unsafe { &*(ctx as *const CryptoHooks) };
+    hmac_fn_shim(&hooks.hmac_sha_512, key, in_, out, c_status)
 }
 
 extern "C" fn hmac_sha_256_shim(
@@ -277,7 +274,8 @@ extern "C" fn hmac_sha_256_shim(
     out: *mut sys::mongocrypt_binary_t,
     c_status: *mut sys::mongocrypt_status_t,
 ) -> bool {
-    hmac_fn_shim(|hooks| &hooks.hmac_sha_256, ctx, key, in_, out, c_status)
+    let hooks = unsafe { &*(ctx as *const CryptoHooks) };
+    hmac_fn_shim(&hooks.hmac_sha_256, key, in_, out, c_status)
 }
 
 extern "C" fn sha_256_shim(
