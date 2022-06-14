@@ -2,7 +2,7 @@ use std::ffi::CStr;
 
 use mongocrypt_sys as sys;
 
-use crate::error::{Status, ErrorKind, ErrorKindCrypt};
+use crate::error::{ErrorKind, ErrorKindCrypt, Status};
 
 #[test]
 fn status_parse() {
@@ -14,7 +14,7 @@ fn status_parse() {
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
             42,
             message.as_ptr(),
-            -1
+            -1,
         );
     }
     let err = status.check().unwrap_err();

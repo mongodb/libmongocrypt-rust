@@ -1,9 +1,13 @@
-use std::{ptr, ffi::CStr, marker::PhantomData};
+use std::{ffi::CStr, marker::PhantomData, ptr};
 
 use bson::{doc, Document, RawDocument};
 use mongocrypt_sys as sys;
 
-use crate::{binary::{BinaryRef, Binary}, error::{HasStatus, Result, self}, convert::{doc_binary, str_bytes_len, rawdoc}};
+use crate::{
+    binary::{Binary, BinaryRef},
+    convert::{doc_binary, rawdoc, str_bytes_len},
+    error::{self, HasStatus, Result},
+};
 
 pub struct CtxBuilder {
     inner: *mut sys::mongocrypt_ctx_t,
@@ -238,7 +242,9 @@ pub enum Algorithm {
 impl Algorithm {
     fn c_str(&self) -> &'static CStr {
         let bytes: &[u8] = match self {
-            Self::AeadAes256CbcHmacSha512Deterministic => b"AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic\0",
+            Self::AeadAes256CbcHmacSha512Deterministic => {
+                b"AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic\0"
+            }
             Self::AeadAes256CbcHmacSha512Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
         };
         unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
@@ -297,9 +303,7 @@ impl HasStatus for Ctx {
 
 impl Ctx {
     pub fn state(&self) -> Result<State> {
-        let s = unsafe {
-            sys::mongocrypt_ctx_state(self.inner)
-        };
+        let s = unsafe { sys::mongocrypt_ctx_state(self.inner) };
         if s == sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_ERROR {
             return Err(self.status().as_error());
         }
@@ -382,11 +386,17 @@ pub enum State {
 impl State {
     fn from_native(state: sys::mongocrypt_ctx_state_t) -> Result<Self> {
         match state {
-            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO => Ok(Self::NeedMongoCollinfo),
-            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_MARKINGS => Ok(Self::NeedMongoMarkings),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO => {
+                Ok(Self::NeedMongoCollinfo)
+            }
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_MARKINGS => {
+                Ok(Self::NeedMongoMarkings)
+            }
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_KEYS => Ok(Self::NeedMongoKeys),
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS => Ok(Self::NeedKms),
-            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS_CREDENTIALS => Ok(Self::NeedKmsCredentials),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS_CREDENTIALS => {
+                Ok(Self::NeedKmsCredentials)
+            }
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_READY => Ok(Self::Ready),
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_DONE => Ok(Self::Done),
             _ => Err(error::internal!("unexpected ctx state {}", state)),
@@ -403,13 +413,14 @@ pub struct KmsScope<'ctx> {
 // `Iterator`'s exclusive `next(&mut self)`.
 impl<'ctx> KmsScope<'ctx> {
     pub fn next_kms_ctx(&self) -> Option<KmsCtx> {
-        let inner = unsafe {
-            sys::mongocrypt_ctx_next_kms_ctx(self.ctx.inner)
-        };
+        let inner = unsafe { sys::mongocrypt_ctx_next_kms_ctx(self.ctx.inner) };
         if inner == ptr::null_mut() {
             return None;
         }
-        Some(KmsCtx { inner, _marker: PhantomData })
+        Some(KmsCtx {
+            inner,
+            _marker: PhantomData,
+        })
     }
 }
 
@@ -452,7 +463,10 @@ impl<'scope> KmsCtx<'scope> {
     pub fn endpoint(&self) -> Result<&'scope str> {
         let mut ptr: *const ::std::os::raw::c_char = ptr::null();
         unsafe {
-            if !sys::mongocrypt_kms_ctx_endpoint(self.inner, &mut ptr as *mut *const ::std::os::raw::c_char) {
+            if !sys::mongocrypt_kms_ctx_endpoint(
+                self.inner,
+                &mut ptr as *mut *const ::std::os::raw::c_char,
+            ) {
                 return Err(self.status().as_error());
             }
             Ok(CStr::from_ptr(ptr).to_str()?)
@@ -460,9 +474,7 @@ impl<'scope> KmsCtx<'scope> {
     }
 
     pub fn bytes_needed(&self) -> u32 {
-        unsafe {
-            sys::mongocrypt_kms_ctx_bytes_needed(self.inner)
-        }
+        unsafe { sys::mongocrypt_kms_ctx_bytes_needed(self.inner) }
     }
 
     pub fn feed(&mut self, bytes: &[u8]) -> Result<()> {

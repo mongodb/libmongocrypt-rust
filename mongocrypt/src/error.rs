@@ -1,4 +1,8 @@
-use std::{fmt::{Display, Debug}, ffi::CStr, ptr};
+use std::{
+    ffi::CStr,
+    fmt::{Debug, Display},
+    ptr,
+};
 
 use mongocrypt_sys as sys;
 
@@ -19,8 +23,7 @@ impl<K: Debug> Display for Error<K> {
     }
 }
 
-impl<K: Debug> std::error::Error for Error<K> {
-}
+impl<K: Debug> std::error::Error for Error<K> {}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ErrorKind {
@@ -105,7 +108,9 @@ pub(crate) struct Status {
 
 impl Status {
     pub(crate) fn new() -> Self {
-        Self { inner: unsafe { sys::mongocrypt_status_new() } }
+        Self {
+            inner: unsafe { sys::mongocrypt_status_new() },
+        }
     }
 
     pub(crate) fn from_native(inner: *mut sys::mongocrypt_status_t) -> Self {
@@ -133,12 +138,14 @@ impl Status {
             let c_message = unsafe { CStr::from_ptr(message_ptr) };
             let message = c_message
                 .to_str()
-                .map_err(|err| {
-                    encoding!("invalid status message: {}", err)
-                })?;
+                .map_err(|err| encoding!("invalid status message: {}", err))?;
             Some(message.to_string())
         };
-        Err(Error { kind: ErrorKind::Crypt(kind), code, message })
+        Err(Error {
+            kind: ErrorKind::Crypt(kind),
+            code,
+            message,
+        })
     }
 
     pub(crate) fn set(&mut self, err: &Error<ErrorKindCrypt>) -> Result<()> {
@@ -163,14 +170,16 @@ impl Status {
     pub(crate) fn as_error(&self) -> Error<ErrorKind> {
         match self.check() {
             Err(e) => e,
-            _ => internal!("expected error status, got ok")
+            _ => internal!("expected error status, got ok"),
         }
     }
 }
 
 impl Drop for Status {
     fn drop(&mut self) {
-        unsafe { sys::mongocrypt_status_destroy(self.inner); }
+        unsafe {
+            sys::mongocrypt_status_destroy(self.inner);
+        }
     }
 }
 
@@ -179,7 +188,9 @@ pub(crate) trait HasStatus {
 
     fn status(&self) -> Status {
         let out = Status::new();
-        unsafe { self.native_status(out.native()); }
+        unsafe {
+            self.native_status(out.native());
+        }
         out
     }
 }

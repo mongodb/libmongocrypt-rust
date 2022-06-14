@@ -1,11 +1,15 @@
 use bson::{Document, RawDocument};
 use mongocrypt_sys as sys;
 
-use crate::{error::{Result, self}, binary::BinaryBuf};
+use crate::{
+    binary::BinaryBuf,
+    error::{self, Result},
+};
 
 pub(crate) fn doc_binary(doc: &Document) -> Result<BinaryBuf> {
     let mut bytes = vec![];
-    doc.to_writer(&mut bytes).map_err(|e| error::internal!("failure serializing doc: {}", e))?;
+    doc.to_writer(&mut bytes)
+        .map_err(|e| error::internal!("failure serializing doc: {}", e))?;
     Ok(BinaryBuf::new(bytes))
 }
 
@@ -33,7 +37,7 @@ pub(crate) fn path_bytes(path: &Path) -> Result<Vec<u8>> {
 pub(crate) fn str_bytes_len(s: &str) -> Result<(*const i8, i32)> {
     Ok((
         s.as_bytes().as_ptr() as *const i8,
-        s.as_bytes().len().try_into()?
+        s.as_bytes().len().try_into()?,
     ))
 }
 
@@ -44,17 +48,13 @@ pub(crate) fn rawdoc(bytes: &[u8]) -> Result<&RawDocument> {
 pub(crate) unsafe fn binary_bytes<'a>(binary: *mut sys::mongocrypt_binary_t) -> Result<&'a [u8]> {
     let data = sys::mongocrypt_binary_data(binary);
     let len = sys::mongocrypt_binary_len(binary);
-    Ok(std::slice::from_raw_parts(
-        data,
-        len.try_into()?,
-    ))
+    Ok(std::slice::from_raw_parts(data, len.try_into()?))
 }
 
-pub(crate) unsafe fn binary_bytes_mut<'a>(binary: *mut sys::mongocrypt_binary_t) -> Result<&'a mut [u8]> {
+pub(crate) unsafe fn binary_bytes_mut<'a>(
+    binary: *mut sys::mongocrypt_binary_t,
+) -> Result<&'a mut [u8]> {
     let data = sys::mongocrypt_binary_data(binary);
     let len = sys::mongocrypt_binary_len(binary);
-    Ok(std::slice::from_raw_parts_mut(
-        data,
-        len.try_into()?,
-    ))
+    Ok(std::slice::from_raw_parts_mut(data, len.try_into()?))
 }

@@ -1,20 +1,20 @@
-use std::{ffi::CStr, ptr, path::Path};
+use std::{ffi::CStr, path::Path, ptr};
 
 use binary::BinaryRef;
 use bson::Document;
-use convert::{str_bytes_len, doc_binary, path_bytes};
+use convert::{doc_binary, path_bytes, str_bytes_len};
 use ctx::CtxBuilder;
 use mongocrypt_sys as sys;
 
 mod binary;
 mod convert;
 pub mod ctx;
-#[cfg(test)]
-mod test;
 pub mod error;
 mod hooks;
+#[cfg(test)]
+mod test;
 
-use error::{Result, HasStatus};
+use error::{HasStatus, Result};
 pub use hooks::*;
 
 /// Returns the version string for libmongocrypt.
@@ -43,7 +43,11 @@ impl CryptBuilder {
         }
     }
 
-    pub fn kms_provider_aws(self, aws_access_key_id: &str, aws_secret_access_key: &str) -> Result<Self> {
+    pub fn kms_provider_aws(
+        self,
+        aws_access_key_id: &str,
+        aws_secret_access_key: &str,
+    ) -> Result<Self> {
         let (key_bytes, key_len) = str_bytes_len(aws_access_key_id)?;
         let (secret_bytes, secret_len) = str_bytes_len(aws_secret_access_key)?;
         unsafe {
@@ -63,10 +67,7 @@ impl CryptBuilder {
     pub fn kms_provider_local(self, key: &[u8]) -> Result<Self> {
         let bin = BinaryRef::new(key);
         unsafe {
-            if !sys::mongocrypt_setopt_kms_provider_local(
-                self.inner,
-                bin.native(),
-            ) {
+            if !sys::mongocrypt_setopt_kms_provider_local(self.inner, bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -107,7 +108,10 @@ impl CryptBuilder {
         let mut tmp = path_bytes(path)?;
         tmp.push(0);
         unsafe {
-            sys::mongocrypt_setopt_append_crypt_shared_lib_search_path(self.inner, tmp.as_ptr() as *const i8);
+            sys::mongocrypt_setopt_append_crypt_shared_lib_search_path(
+                self.inner,
+                tmp.as_ptr() as *const i8,
+            );
         }
         Ok(self)
     }
@@ -116,7 +120,10 @@ impl CryptBuilder {
         let mut tmp = path_bytes(path)?;
         tmp.push(0);
         unsafe {
-            sys::mongocrypt_setopt_set_crypt_shared_lib_path_override(self.inner, tmp.as_ptr() as *const i8);
+            sys::mongocrypt_setopt_set_crypt_shared_lib_path_override(
+                self.inner,
+                tmp.as_ptr() as *const i8,
+            );
         }
         Ok(self)
     }
@@ -152,7 +159,9 @@ impl CryptBuilder {
 impl Drop for CryptBuilder {
     fn drop(&mut self) {
         if self.inner != ptr::null_mut() {
-            unsafe { sys::mongocrypt_destroy(self.inner); }
+            unsafe {
+                sys::mongocrypt_destroy(self.inner);
+            }
         }
     }
 }
@@ -168,7 +177,9 @@ unsafe impl Sync for Crypt {}
 impl Drop for Crypt {
     fn drop(&mut self) {
         if self.inner != ptr::null_mut() {
-            unsafe { sys::mongocrypt_destroy(self.inner); }
+            unsafe {
+                sys::mongocrypt_destroy(self.inner);
+            }
         }
     }
 }
@@ -179,7 +190,8 @@ impl Crypt {
     }
 
     pub fn shared_lib_version_string(&self) -> Option<String> {
-        let s_ptr = unsafe { sys::mongocrypt_crypt_shared_lib_version_string(self.inner, ptr::null_mut()) };
+        let s_ptr =
+            unsafe { sys::mongocrypt_crypt_shared_lib_version_string(self.inner, ptr::null_mut()) };
         if s_ptr == ptr::null() {
             return None;
         }

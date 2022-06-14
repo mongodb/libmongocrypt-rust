@@ -2,9 +2,9 @@ use std::path::Path;
 
 use bson::doc;
 
-use crate::CryptBuilder;
 use crate::ctx::{Algorithm, IndexType, QueryType};
 use crate::error::Result;
+use crate::CryptBuilder;
 
 mod binary;
 mod error;
@@ -29,14 +29,10 @@ fn builder_setopts() -> Result<()> {
             |_, _, _| Ok(()),
             |_, _| Ok(()),
         )?
-        .aes_256_ctr(
-            |_, _, _, _| Ok(()),
-            |_, _, _, _| Ok(()),
-        )?
+        .aes_256_ctr(|_, _, _, _| Ok(()), |_, _, _, _| Ok(()))?
         .aes_256_ecb(|_, _, _, _| Ok(()))?
         .crypto_hook_sign_rsassa_pkcs1_v1_5(|_, _, _| Ok(()))?
-        .bypass_query_analysis()
-    ;
+        .bypass_query_analysis();
     Ok(())
 }
 
@@ -75,8 +71,7 @@ fn ctx_setopts() -> Result<()> {
         .index_type(IndexType::Equality)?
         .contention_factor(10)?
         .index_key_id(&bson::Uuid::new())?
-        .query_type(QueryType::Equality)?
-    ;
+        .query_type(QueryType::Equality)?;
 
     Ok(())
 }

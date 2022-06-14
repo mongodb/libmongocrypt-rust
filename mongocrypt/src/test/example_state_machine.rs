@@ -1,8 +1,12 @@
-use std::{path::Path, fs::File, io::Read};
+use std::{fs::File, io::Read, path::Path};
 
-use bson::{Document, Bson, RawDocument, RawDocumentBuf};
+use bson::{Bson, Document, RawDocument, RawDocumentBuf};
 
-use crate::{ctx::{Ctx, State, Algorithm}, error::Result, Crypt};
+use crate::{
+    ctx::{Algorithm, Ctx, State},
+    error::Result,
+    Crypt,
+};
 
 fn load_doc_from_json<P: AsRef<Path>>(path: P) -> Document {
     let file = File::open(path).unwrap();
@@ -53,10 +57,7 @@ fn run_state_machine(ctx: &mut Ctx) -> Result<RawDocumentBuf> {
                     raw_to_doc(output),
                 );
                 let input = read_json_as_bson("../testdata/collection-info.json");
-                println!(
-                    "\nmocking reply from file:\n{:?}",
-                    raw_to_doc(&input),
-                );
+                println!("\nmocking reply from file:\n{:?}", raw_to_doc(&input),);
                 ctx.mongo_feed(&input)?;
                 ctx.mongo_done()?;
             }
@@ -67,10 +68,7 @@ fn run_state_machine(ctx: &mut Ctx) -> Result<RawDocumentBuf> {
                     raw_to_doc(output),
                 );
                 let input = read_json_as_bson("../testdata/mongocryptd-reply.json");
-                println!(
-                    "\nmocking reply from file:\n{:?}",
-                    raw_to_doc(&input),
-                );
+                println!("\nmocking reply from file:\n{:?}", raw_to_doc(&input),);
                 ctx.mongo_feed(&input)?;
                 ctx.mongo_done()?;
             }
@@ -81,10 +79,7 @@ fn run_state_machine(ctx: &mut Ctx) -> Result<RawDocumentBuf> {
                     raw_to_doc(output),
                 );
                 let input = read_json_as_bson("../testdata/key-document.json");
-                println!(
-                    "\nmocking reply from file:\n{:?}",
-                    raw_to_doc(&input),
-                );
+                println!("\nmocking reply from file:\n{:?}", raw_to_doc(&input),);
                 ctx.mongo_feed(&input)?;
                 ctx.mongo_done()?;
             }
@@ -129,13 +124,11 @@ fn encryption_decryption() -> Result<()> {
 
     // Encryption
     let msg = read_json_as_bson("../testdata/cmd.json");
-    let mut ctx = crypt.ctx_builder()
-        .build_encrypt("test", &msg)?;
+    let mut ctx = crypt.ctx_builder().build_encrypt("test", &msg)?;
     let result = run_state_machine(&mut ctx)?;
 
     // Decryption
-    let mut ctx = crypt.ctx_builder()
-        .build_decrypt(&result)?;
+    let mut ctx = crypt.ctx_builder().build_decrypt(&result)?;
     run_state_machine(&mut ctx)?;
 
     Ok(())
@@ -151,14 +144,16 @@ fn explicit_encryption_decryption() -> Result<()> {
         Bson::Binary(bson::Binary { bytes, .. }) => bytes,
         _ => panic!("non-binary bson"),
     };
-    let mut ctx = crypt.ctx_builder()
+    let mut ctx = crypt
+        .ctx_builder()
         .key_id(key_bytes)?
         .algorithm(Algorithm::AeadAes256CbcHmacSha512Random)?
         .build_explicit_encrypt(&Bson::String("hello".to_string()))?;
     let result = run_state_machine(&mut ctx)?;
 
     // Decryption
-    let mut ctx = crypt.ctx_builder()
+    let mut ctx = crypt
+        .ctx_builder()
         .build_explicit_decrypt(result.as_bytes())?;
     run_state_machine(&mut ctx)?;
 

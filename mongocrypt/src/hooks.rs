@@ -1,12 +1,21 @@
-use std::{ffi::CStr, panic::{catch_unwind, AssertUnwindSafe, UnwindSafe}, io::Write};
+use std::{
+    ffi::CStr,
+    io::Write,
+    panic::{catch_unwind, AssertUnwindSafe, UnwindSafe},
+};
 
-use crate::{CryptBuilder, error::{Result, self, CryptResult, HasStatus, Error, ErrorKind, Status}, convert::{binary_bytes, binary_bytes_mut}};
+use crate::{
+    convert::{binary_bytes, binary_bytes_mut},
+    error::{self, CryptResult, Error, ErrorKind, HasStatus, Result, Status},
+    CryptBuilder,
+};
 
 use mongocrypt_sys as sys;
 
 impl CryptBuilder {
     pub fn log_handler<F>(mut self, handler: F) -> Result<Self>
-        where F: Fn(LogLevel, &str) + 'static + UnwindSafe
+    where
+        F: Fn(LogLevel, &str) + 'static + UnwindSafe,
     {
         type LogCb = dyn Fn(LogLevel, &str) + UnwindSafe;
 
@@ -36,7 +45,7 @@ impl CryptBuilder {
                 return Err(self.status().as_error());
             }
         }
-        
+
         // Now that the handler's successfully set, store it so it gets cleaned up on drop.
         self.cleanup.push(handler);
         Ok(self)
@@ -107,10 +116,18 @@ impl CryptBuilder {
             in_: *mut sys::mongocrypt_binary_t,
             out: *mut sys::mongocrypt_binary_t,
             bytes_written: *mut u32,
-            status: *mut sys::mongocrypt_status_t,    
+            status: *mut sys::mongocrypt_status_t,
         ) -> bool {
             let hooks = unsafe { &*(ctx as *const Hooks) };
-            crypto_fn_shim(&hooks.aes_256_ctr_encrypt, key, iv, in_, out, bytes_written, status)
+            crypto_fn_shim(
+                &hooks.aes_256_ctr_encrypt,
+                key,
+                iv,
+                in_,
+                out,
+                bytes_written,
+                status,
+            )
         }
         extern "C" fn aes_256_ctr_decrypt_shim(
             ctx: *mut ::std::os::raw::c_void,
@@ -119,10 +136,18 @@ impl CryptBuilder {
             in_: *mut sys::mongocrypt_binary_t,
             out: *mut sys::mongocrypt_binary_t,
             bytes_written: *mut u32,
-            status: *mut sys::mongocrypt_status_t,    
+            status: *mut sys::mongocrypt_status_t,
         ) -> bool {
             let hooks = unsafe { &*(ctx as *const Hooks) };
-            crypto_fn_shim(&hooks.aes_256_ctr_decrypt, key, iv, in_, out, bytes_written, status)
+            crypto_fn_shim(
+                &hooks.aes_256_ctr_decrypt,
+                key,
+                iv,
+                in_,
+                out,
+                bytes_written,
+                status,
+            )
         }
         unsafe {
             if !sys::mongocrypt_setopt_aes_256_ctr(
@@ -140,7 +165,9 @@ impl CryptBuilder {
 
     pub fn aes_256_ecb(
         mut self,
-        aes_256_ecb_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+        aes_256_ecb_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()>
+            + UnwindSafe
+            + 'static,
     ) -> Result<Self> {
         let hook: Box<CryptoFn> = Box::new(Box::new(aes_256_ecb_encrypt));
         extern "C" fn shim(
@@ -150,7 +177,7 @@ impl CryptBuilder {
             in_: *mut sys::mongocrypt_binary_t,
             out: *mut sys::mongocrypt_binary_t,
             bytes_written: *mut u32,
-            status: *mut sys::mongocrypt_status_t,    
+            status: *mut sys::mongocrypt_status_t,
         ) -> bool {
             let hook = unsafe { &*(ctx as *const CryptoFn) };
             crypto_fn_shim(hook, key, iv, in_, out, bytes_written, status)
@@ -170,7 +197,9 @@ impl CryptBuilder {
 
     pub fn crypto_hook_sign_rsassa_pkcs1_v1_5(
         mut self,
-        sign_rsaes_pkcs1_v1_5: impl Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+        sign_rsaes_pkcs1_v1_5: impl Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()>
+            + UnwindSafe
+            + 'static,
     ) -> Result<Self> {
         let hook: Box<HmacFn> = Box::new(Box::new(sign_rsaes_pkcs1_v1_5));
         extern "C" fn shim(
@@ -219,7 +248,7 @@ impl LogLevel {
                 kind: error::ErrorKind::Internal,
                 code: 0,
                 message: Some(format!("unhandled log level {}", level)),
-            })
+            }),
         }
     }
 }
@@ -276,7 +305,9 @@ fn crypto_fn_shim(
         let mut out_bytes = unsafe { binary_bytes_mut(out)? };
         let buffer_len = out_bytes.len();
         let out_bytes_writer: &mut dyn Write = &mut out_bytes;
-        let result = run_hook(AssertUnwindSafe(|| hook_fn(key_bytes, iv_bytes, in_bytes, out_bytes_writer)));
+        let result = run_hook(AssertUnwindSafe(|| {
+            hook_fn(key_bytes, iv_bytes, in_bytes, out_bytes_writer)
+        }));
         let written = buffer_len - out_bytes.len();
         unsafe {
             *bytes_written = written.try_into()?;
@@ -289,17 +320,32 @@ fn crypto_fn_shim(
 fn write_status(result: Result<()>, c_status: *mut sys::mongocrypt_status_t) -> bool {
     let err = match result {
         Ok(()) => return true,
-        Err(Error { kind: ErrorKind::Crypt(ck), code, message }) => Error { kind: ck, code, message },
+        Err(Error {
+            kind: ErrorKind::Crypt(ck),
+            code,
+            message,
+        }) => Error {
+            kind: ck,
+            code,
+            message,
+        },
         // Map Rust-specific errors to Client with a message prefix.
-        Err(Error { kind, code, message }) => Error {
+        Err(Error {
+            kind,
+            code,
+            message,
+        }) => Error {
             kind: error::ErrorKindCrypt::Client,
             code,
             message: message.map(|s| format!("{:?}: {}", kind, s)),
-        }
+        },
     };
     let mut status = Status::from_native(c_status);
     if let Err(status_err) = status.set(&err) {
-        eprintln!("Failed to record error:\noriginal error = {:?}\nstatus error = {:?}", err, status_err);
+        eprintln!(
+            "Failed to record error:\noriginal error = {:?}\nstatus error = {:?}",
+            err, status_err
+        );
         unsafe {
             // Set a hardcoded status that can't fail.
             sys::mongocrypt_status_set(
@@ -383,7 +429,9 @@ fn hmac_fn_shim(
         let key_bytes = unsafe { binary_bytes(key)? };
         let in_bytes = unsafe { binary_bytes(in_)? };
         let out_writer: &mut dyn Write = &mut unsafe { binary_bytes_mut(out)? };
-        run_hook(AssertUnwindSafe(|| hook_fn(key_bytes, in_bytes, out_writer)))
+        run_hook(AssertUnwindSafe(|| {
+            hook_fn(key_bytes, in_bytes, out_writer)
+        }))
     }();
     write_status(result, c_status)
 }
