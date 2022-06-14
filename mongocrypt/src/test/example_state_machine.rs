@@ -89,7 +89,7 @@ fn run_state_machine(ctx: &mut Ctx) -> Result<RawDocumentBuf> {
                 ctx.mongo_done()?;
             }
             State::NeedKms => {
-                let mut scope = ctx.kms_scope();
+                let scope = ctx.kms_scope();
                 while let Some(mut kms) = scope.next_kms_ctx() {
                     let output = kms.message()?;
                     println!(
@@ -104,7 +104,6 @@ fn run_state_machine(ctx: &mut Ctx) -> Result<RawDocumentBuf> {
                     kms.feed(&input)?;
                     assert_eq!(0, kms.bytes_needed());
                 }
-                ctx.kms_done(scope)?;
             }
             State::Ready => {
                 let output = ctx.finalize()?;

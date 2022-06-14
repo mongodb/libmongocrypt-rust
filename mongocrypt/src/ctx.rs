@@ -341,18 +341,8 @@ impl Ctx {
         Ok(())
     }
 
-    pub fn kms_scope(&self) -> KmsScope {
-        KmsScope { ctx: self, done: false }
-    }
-
-    pub fn kms_done(&self, mut scope: KmsScope) -> Result<()> {
-        scope.done = true;
-        unsafe {
-            if !sys::mongocrypt_ctx_kms_done(self.inner) {
-                return Err(self.status().as_error());
-            }
-        }
-        Ok(())
+    pub fn kms_scope(&mut self) -> KmsScope {
+        KmsScope { ctx: self }
     }
 
     pub fn provide_kms_providers(&mut self, kms_providers_definition: &RawDocument) -> Result<()> {
@@ -406,11 +396,13 @@ impl State {
 
 pub struct KmsScope<'ctx> {
     ctx: &'ctx Ctx,
-    done: bool,
 }
 
+// This is `Iterator`-like but does not impl that because it's encouraged for multiple `KmsCtx` to
+// be retrieved and processed in parallel, as reflected in the `&self` shared reference rather than
+// `Iterator`'s exclusive `next(&mut self)`.
 impl<'ctx> KmsScope<'ctx> {
-    pub fn next_kms_ctx<'scope>(&'scope mut self) -> Option<KmsCtx<'scope>> {
+    pub fn next_kms_ctx(&self) -> Option<KmsCtx> {
         let inner = unsafe {
             sys::mongocrypt_ctx_next_kms_ctx(self.ctx.inner)
         };
@@ -423,9 +415,9 @@ impl<'ctx> KmsScope<'ctx> {
 
 impl<'ctx> Drop for KmsScope<'ctx> {
     fn drop(&mut self) {
-        #[cfg(debug_assertions)]
-        if !self.done {
-            panic!("KmsScope dropped without calling kms_done");
+        unsafe {
+            // If this errors, it will show up in the next call to `ctx.status()` (or any other ctx call).
+            sys::mongocrypt_ctx_kms_done(self.ctx.inner);
         }
     }
 }
@@ -486,10 +478,4 @@ impl<'scope> KmsCtx<'scope> {
             Ok(CStr::from_ptr(ptr).to_str()?)
         }
     }
-
-    /*
-    pub fn done(self) -> Result<()> {
-
-    }
-    */
 }
