@@ -171,6 +171,10 @@ impl Drop for Crypt {
 }
 
 impl Crypt {
+    pub fn builder() -> CryptBuilder {
+        CryptBuilder::new()
+    }
+
     pub fn shared_lib_version_string(&self) -> Option<String> {
         let s_ptr = unsafe { sys::mongocrypt_crypt_shared_lib_version_string(self.inner, ptr::null_mut()) };
         if s_ptr == ptr::null() {

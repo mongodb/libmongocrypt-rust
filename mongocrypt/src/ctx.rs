@@ -173,9 +173,9 @@ impl CtxBuilder {
         Ok(self.into_ctx())
     }
 
-    pub fn build_encrypt(self, db: &str, cmd: &Document) -> Result<Ctx> {
+    pub fn build_encrypt(self, db: &str, cmd: &RawDocument) -> Result<Ctx> {
         let (db_bytes, db_len) = str_bytes_len(db)?;
-        let cmd_bin = doc_binary(cmd)?;
+        let cmd_bin = BinaryRef::new(cmd.as_bytes());
         unsafe {
             if !sys::mongocrypt_ctx_encrypt_init(self.inner, db_bytes, db_len, cmd_bin.native()) {
                 return Err(self.status().as_error());
@@ -194,8 +194,8 @@ impl CtxBuilder {
         Ok(self.into_ctx())
     }
 
-    pub fn build_decrypt(self, doc: &Document) -> Result<Ctx> {
-        let bin = doc_binary(doc)?;
+    pub fn build_decrypt(self, doc: &RawDocument) -> Result<Ctx> {
+        let bin = BinaryRef::new(doc.as_bytes());
         unsafe {
             if !sys::mongocrypt_ctx_decrypt_init(self.inner, bin.native()) {
                 return Err(self.status().as_error());
@@ -218,8 +218,8 @@ impl CtxBuilder {
         Ok(self.into_ctx())
     }
 
-    pub fn build_rewrap_many_datakey(self, filter: &Document) -> Result<Ctx> {
-        let bin = doc_binary(filter)?;
+    pub fn build_rewrap_many_datakey(self, filter: &RawDocument) -> Result<Ctx> {
+        let bin = BinaryRef::new(&filter.as_bytes());
         unsafe {
             if !sys::mongocrypt_ctx_rewrap_many_datakey_init(self.inner, bin.native()) {
                 return Err(self.status().as_error());

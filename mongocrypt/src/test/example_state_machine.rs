@@ -2,7 +2,7 @@ use std::{path::Path, fs::File, io::Read};
 
 use bson::{Document, Bson, RawDocument, RawDocumentBuf};
 
-use crate::{ctx::{Ctx, State}, error::Result};
+use crate::{ctx::{Ctx, State}, error::Result, Crypt, CryptBuilder, LogLevel};
 
 fn load_doc_from_json<P: AsRef<Path>>(path: P) -> Document {
     let file = File::open(path).unwrap();
@@ -115,4 +115,31 @@ fn run_state_machine(ctx: &mut Ctx) -> Result<RawDocumentBuf> {
         }
     }
     Ok(result)
+}
+
+fn init_test_crypt() -> Result<Crypt> {
+    Crypt::builder()
+        .kms_provider_aws("example", "example")?
+        .log_handler(|level, message| eprintln!("{:?}: {}", level, message))?
+        .build()
+}
+
+#[test]
+fn encryption_decryption() -> Result<()> {
+    let crypt = init_test_crypt()?;
+
+    // Encryption
+    let msg = read_json_as_bson("src/test/testdata/cmd.json");
+    let mut ctx = crypt.ctx_builder()
+        .build_encrypt("test", &msg)?;
+    let result = run_state_machine(&mut ctx)?;
+
+    // Decryption
+    let mut ctx = crypt.ctx_builder()
+        .build_decrypt(&result)?;
+    let result = run_state_machine(&mut ctx)?;
+
+    assert_eq!(msg, result);
+
+    Ok(())
 }
