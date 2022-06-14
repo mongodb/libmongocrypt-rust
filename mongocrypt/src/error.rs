@@ -7,13 +7,13 @@ use std::{
 use mongocrypt_sys as sys;
 
 #[derive(Debug)]
-pub struct Error<K> {
-    pub kind: K,
+pub struct Error {
+    pub kind: ErrorKind,
     pub code: u32,
     pub message: Option<String>,
 }
 
-impl<K: Debug> Display for Error<K> {
+impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?} ({})", self.kind, self.code)?;
         if let Some(s) = &self.message {
@@ -23,42 +23,27 @@ impl<K: Debug> Display for Error<K> {
     }
 }
 
-impl<K: Debug> std::error::Error for Error<K> {}
+impl std::error::Error for Error {}
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum ErrorKind {
     // These correspond to errors from libmongocrypt
-    Crypt(ErrorKindCrypt),
+    Client,
+    Kms,
+    CsFle,
     // These are produced in this crate
     Encoding,
     Overflow,
     Internal,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub enum ErrorKindCrypt {
-    Client,
-    Kms,
-    CsFle,
-}
-
-impl From<Error<ErrorKindCrypt>> for Error<ErrorKind> {
-    fn from(err: Error<ErrorKindCrypt>) -> Self {
-        Self {
-            kind: ErrorKind::Crypt(err.kind),
-            code: err.code,
-            message: err.message,
-        }
-    }
-}
-
-impl From<std::num::TryFromIntError> for Error<ErrorKind> {
+impl From<std::num::TryFromIntError> for Error {
     fn from(err: std::num::TryFromIntError) -> Self {
         overflow!("size overflow: {}", err)
     }
 }
 
-impl From<std::str::Utf8Error> for Error<ErrorKind> {
+impl From<std::str::Utf8Error> for Error {
     fn from(err: std::str::Utf8Error) -> Self {
         encoding!("invalid string: {}", err)
     }
@@ -99,8 +84,7 @@ pub(crate) use overflow;
 
 use crate::convert::str_bytes_len;
 
-pub type Result<T> = std::result::Result<T, Error<ErrorKind>>;
-pub type CryptResult<T> = std::result::Result<T, Error<ErrorKindCrypt>>;
+pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) struct Status {
     inner: *mut sys::mongocrypt_status_t,
@@ -125,9 +109,9 @@ impl Status {
         let typ = unsafe { sys::mongocrypt_status_type(self.inner) };
         let kind = match typ {
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_OK => return Ok(()),
-            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT => ErrorKindCrypt::Client,
-            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS => ErrorKindCrypt::Kms,
-            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE => ErrorKindCrypt::CsFle,
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT => ErrorKind::Client,
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS => ErrorKind::Kms,
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE => ErrorKind::CsFle,
             _ => return Err(internal!("unhandled status type {}", typ)),
         };
         let code = unsafe { sys::mongocrypt_status_code(self.inner) };
@@ -142,17 +126,29 @@ impl Status {
             Some(message.to_string())
         };
         Err(Error {
-            kind: ErrorKind::Crypt(kind),
+            kind,
             code,
             message,
         })
     }
 
-    pub(crate) fn set(&mut self, err: &Error<ErrorKindCrypt>) -> Result<()> {
+    pub(crate) fn set(&mut self, err: &Error) -> Result<()> {
+        let inner_err;
+        // Reborrow to help the borrow checker accept the lifetime of the assignment in the fallthrough.
+        let mut err = &*err;
         let typ = match err.kind {
-            ErrorKindCrypt::Client => sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
-            ErrorKindCrypt::Kms => sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS,
-            ErrorKindCrypt::CsFle => sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE,
+            ErrorKind::Client => sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
+            ErrorKind::Kms => sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS,
+            ErrorKind::CsFle => sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE,
+            _ => {
+                inner_err = Error {
+                    kind: ErrorKind::Client,
+                    code: err.code,
+                    message: err.message.as_ref().map(|s| format!("{:?}: {}", err.kind, s)),
+                };
+                err = &inner_err;
+                sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT
+            }
         };
         let (message_ptr, message_len) = match &err.message {
             Some(message) => {
@@ -167,7 +163,7 @@ impl Status {
         Ok(())
     }
 
-    pub(crate) fn as_error(&self) -> Error<ErrorKind> {
+    pub(crate) fn as_error(&self) -> Error {
         match self.check() {
             Err(e) => e,
             _ => internal!("expected error status, got ok"),

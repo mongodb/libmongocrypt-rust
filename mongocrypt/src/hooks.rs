@@ -6,7 +6,7 @@ use std::{
 
 use crate::{
     convert::{binary_bytes, binary_bytes_mut},
-    error::{self, CryptResult, Error, ErrorKind, HasStatus, Result, Status},
+    error::{self, HasStatus, Result, Status},
     CryptBuilder,
 };
 
@@ -52,12 +52,12 @@ impl CryptBuilder {
     }
 
     pub fn crypto_hooks<
-        Aes256CbcEncrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
-        Aes256CbcDecrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
-        Random: Fn(&mut dyn Write, u32) -> CryptResult<()> + UnwindSafe + 'static,
-        HmacSha512: Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
-        HmacSha256: Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
-        Sha256: Fn(&[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+        Aes256CbcEncrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        Aes256CbcDecrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        Random: Fn(&mut dyn Write, u32) -> Result<()> + UnwindSafe + 'static,
+        HmacSha512: Fn(&[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        HmacSha256: Fn(&[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        Sha256: Fn(&[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
     >(
         mut self,
         aes_256_cbc_encrypt: Aes256CbcEncrypt,
@@ -94,8 +94,8 @@ impl CryptBuilder {
     }
 
     pub fn aes_256_ctr<
-        Aes256CtrEncrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
-        Aes256CtrDecrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe + 'static,
+        Aes256CtrEncrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        Aes256CtrDecrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
     >(
         mut self,
         aes_256_ctr_encrypt: Aes256CtrEncrypt,
@@ -165,7 +165,7 @@ impl CryptBuilder {
 
     pub fn aes_256_ecb(
         mut self,
-        aes_256_ecb_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()>
+        aes_256_ecb_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()>
             + UnwindSafe
             + 'static,
     ) -> Result<Self> {
@@ -197,7 +197,7 @@ impl CryptBuilder {
 
     pub fn crypto_hook_sign_rsassa_pkcs1_v1_5(
         mut self,
-        sign_rsaes_pkcs1_v1_5: impl Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()>
+        sign_rsaes_pkcs1_v1_5: impl Fn(&[u8], &[u8], &mut dyn Write) -> Result<()>
             + UnwindSafe
             + 'static,
     ) -> Result<Self> {
@@ -253,7 +253,7 @@ impl LogLevel {
     }
 }
 
-fn run_hook(hook: impl FnOnce() -> CryptResult<()> + UnwindSafe) -> Result<()> {
+fn run_hook(hook: impl FnOnce() -> Result<()> + UnwindSafe) -> Result<()> {
     catch_unwind(hook)
         .map_err(|_| error::internal!("panic in rust hook"))?
         .map_err(Into::into)
@@ -264,20 +264,20 @@ fn run_hook(hook: impl FnOnce() -> CryptResult<()> + UnwindSafe) -> Result<()> {
 /// * initialization vector (16 bytes for AES_256)
 /// * the input
 /// * destination for output
-type CryptoFn = Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe>;
+type CryptoFn = Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe>;
 /// Parameters:
 /// * destination for output
 /// * number of random bytes requested
-type RandomFn = Box<dyn Fn(&mut dyn Write, u32) -> CryptResult<()> + UnwindSafe>;
+type RandomFn = Box<dyn Fn(&mut dyn Write, u32) -> Result<()> + UnwindSafe>;
 /// Parameters:
 /// * encryption key (32 bytes for HMAC_SHA512)
 /// * the input
 /// * destination for output
-type HmacFn = Box<dyn Fn(&[u8], &[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe>;
+type HmacFn = Box<dyn Fn(&[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe>;
 /// Parameters
 /// * the input
 /// * destination for output
-type HashFn = Box<dyn Fn(&[u8], &mut dyn Write) -> CryptResult<()> + UnwindSafe>;
+type HashFn = Box<dyn Fn(&[u8], &mut dyn Write) -> Result<()> + UnwindSafe>;
 
 struct CryptoHooks {
     aes_256_cbc_encrypt: CryptoFn,
@@ -320,25 +320,7 @@ fn crypto_fn_shim(
 fn write_status(result: Result<()>, c_status: *mut sys::mongocrypt_status_t) -> bool {
     let err = match result {
         Ok(()) => return true,
-        Err(Error {
-            kind: ErrorKind::Crypt(ck),
-            code,
-            message,
-        }) => Error {
-            kind: ck,
-            code,
-            message,
-        },
-        // Map Rust-specific errors to Client with a message prefix.
-        Err(Error {
-            kind,
-            code,
-            message,
-        }) => Error {
-            kind: error::ErrorKindCrypt::Client,
-            code,
-            message: message.map(|s| format!("{:?}: {}", kind, s)),
-        },
+        Err(e) => e,
     };
     let mut status = Status::from_native(c_status);
     if let Err(status_err) = status.set(&err) {
