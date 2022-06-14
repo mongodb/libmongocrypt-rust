@@ -105,33 +105,6 @@ impl Status {
         self.inner
     }
 
-    pub(crate) fn check(&self) -> Result<()> {
-        let typ = unsafe { sys::mongocrypt_status_type(self.inner) };
-        let kind = match typ {
-            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_OK => return Ok(()),
-            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT => ErrorKind::Client,
-            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS => ErrorKind::Kms,
-            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE => ErrorKind::CsFle,
-            _ => return Err(internal!("unhandled status type {}", typ)),
-        };
-        let code = unsafe { sys::mongocrypt_status_code(self.inner) };
-        let message_ptr = unsafe { sys::mongocrypt_status_message(self.inner, ptr::null_mut()) };
-        let message = if message_ptr == ptr::null_mut() {
-            None
-        } else {
-            let c_message = unsafe { CStr::from_ptr(message_ptr) };
-            let message = c_message
-                .to_str()
-                .map_err(|err| encoding!("invalid status message: {}", err))?;
-            Some(message.to_string())
-        };
-        Err(Error {
-            kind,
-            code,
-            message,
-        })
-    }
-
     pub(crate) fn set(&mut self, err: &Error) -> Result<()> {
         let inner_err;
         // Reborrow to help the borrow checker accept the lifetime of the assignment in the fallthrough.
@@ -163,8 +136,35 @@ impl Status {
         Ok(())
     }
 
+    pub(crate) fn as_result(&self) -> Result<()> {
+        let typ = unsafe { sys::mongocrypt_status_type(self.inner) };
+        let kind = match typ {
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_OK => return Ok(()),
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT => ErrorKind::Client,
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS => ErrorKind::Kms,
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE => ErrorKind::CsFle,
+            _ => return Err(internal!("unhandled status type {}", typ)),
+        };
+        let code = unsafe { sys::mongocrypt_status_code(self.inner) };
+        let message_ptr = unsafe { sys::mongocrypt_status_message(self.inner, ptr::null_mut()) };
+        let message = if message_ptr == ptr::null_mut() {
+            None
+        } else {
+            let c_message = unsafe { CStr::from_ptr(message_ptr) };
+            let message = c_message
+                .to_str()
+                .map_err(|err| encoding!("invalid status message: {}", err))?;
+            Some(message.to_string())
+        };
+        Err(Error {
+            kind,
+            code,
+            message,
+        })
+    }
+
     pub(crate) fn as_error(&self) -> Error {
-        match self.check() {
+        match self.as_result() {
             Err(e) => e,
             _ => internal!("expected error status, got ok"),
         }

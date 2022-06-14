@@ -13,6 +13,7 @@ use crate::{
 use mongocrypt_sys as sys;
 
 impl CryptBuilder {
+    /// Set a handler to get called on every log message.
     pub fn log_handler<F>(mut self, handler: F) -> Result<Self>
     where
         F: Fn(LogLevel, &str) + 'static + UnwindSafe,
