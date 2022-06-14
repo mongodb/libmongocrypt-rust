@@ -15,3 +15,6 @@ repository = "https://github.com/mongodb/libmongocrypt-rust"
 [dependencies]
 mongocrypt-sys = { path = "../mongocrypt-sys" }
 bson = "2.3.0"
+
+[dev-dependencies]
+serde_json = "1.0.81"

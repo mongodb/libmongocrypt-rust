@@ -298,9 +298,13 @@ impl HasStatus for Ctx {
 
 impl Ctx {
     pub fn state(&self) -> Result<State> {
-        State::from_native(unsafe {
+        let s = unsafe {
             sys::mongocrypt_ctx_state(self.inner)
-        })
+        };
+        if s == sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_ERROR {
+            return Err(self.status().as_error());
+        }
+        State::from_native(s)
     }
 
     pub fn mongo_op(&self) -> Result<&RawDocument> {
@@ -342,7 +346,7 @@ impl Ctx {
         KmsScope { ctx: self, done: false }
     }
 
-    pub fn kms_done(&mut self, mut scope: KmsScope) -> Result<()> {
+    pub fn kms_done(&self, mut scope: KmsScope) -> Result<()> {
         scope.done = true;
         unsafe {
             if !sys::mongocrypt_ctx_kms_done(self.inner) {
@@ -377,7 +381,6 @@ impl Ctx {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[non_exhaustive]
 pub enum State {
-    Error,
     NeedMongoCollinfo,
     NeedMongoMarkings,
     NeedMongoKeys,
@@ -390,7 +393,6 @@ pub enum State {
 impl State {
     fn from_native(state: sys::mongocrypt_ctx_state_t) -> Result<Self> {
         match state {
-            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_ERROR => Ok(Self::Error),
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO => Ok(Self::NeedMongoCollinfo),
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_MARKINGS => Ok(Self::NeedMongoMarkings),
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_KEYS => Ok(Self::NeedMongoKeys),
@@ -409,7 +411,7 @@ pub struct KmsScope<'ctx> {
 }
 
 impl<'ctx> KmsScope<'ctx> {
-    pub fn next_kms_ctx(&mut self) -> Option<KmsCtx> {
+    pub fn next_kms_ctx<'scope>(&'scope mut self) -> Option<KmsCtx<'scope>> {
         let inner = unsafe {
             sys::mongocrypt_ctx_next_kms_ctx(self.ctx.inner)
         };
@@ -441,17 +443,16 @@ impl<'scope> HasStatus for KmsCtx<'scope> {
 }
 
 impl<'scope> KmsCtx<'scope> {
-    pub fn message(&self) -> Result<&'scope RawDocument> {
+    pub fn message(&self) -> Result<&'scope [u8]> {
         // Safety: the message referenced has a lifetime that's valid until kms_done is called,
         // which can't happen without ending 'scope.
-        let bytes = unsafe {
+        unsafe {
             let bin = Binary::new();
             if !sys::mongocrypt_kms_ctx_message(self.inner, bin.native()) {
                 return Err(self.status().as_error());
             }
-            bin.bytes()?
-        };
-        rawdoc(bytes)
+            bin.bytes()
+        }
     }
 
     pub fn endpoint(&self) -> Result<&'scope str> {
@@ -486,4 +487,10 @@ impl<'scope> KmsCtx<'scope> {
             Ok(CStr::from_ptr(ptr).to_str()?)
         }
     }
+
+    /*
+    pub fn done(self) -> Result<()> {
+
+    }
+    */
 }

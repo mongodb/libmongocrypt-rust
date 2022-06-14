@@ -8,6 +8,7 @@ use crate::error::Result;
 
 mod binary;
 mod error;
+mod example_state_machine;
 
 #[test]
 fn builder_setopts() -> Result<()> {
