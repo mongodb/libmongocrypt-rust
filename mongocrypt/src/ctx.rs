@@ -427,6 +427,9 @@ pub struct KmsCtx<'scope> {
     _marker: PhantomData<&'scope mut ()>,
 }
 
+unsafe impl<'scope> Send for KmsCtx<'scope> {}
+unsafe impl<'scope> Sync for KmsCtx<'scope> {}
+
 impl<'scope> HasStatus for KmsCtx<'scope> {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
         sys::mongocrypt_kms_ctx_status(self.inner, status);

@@ -162,6 +162,9 @@ pub struct Crypt {
     _cleanup: Vec<Box<dyn std::any::Any>>,
 }
 
+unsafe impl Send for Crypt {}
+unsafe impl Sync for Crypt {}
+
 impl Drop for Crypt {
     fn drop(&mut self) {
         if self.inner != ptr::null_mut() {
