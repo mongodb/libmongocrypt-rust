@@ -66,7 +66,7 @@ fn ctx_setopts() -> Result<()> {
 
     let builder = crypt.ctx_builder();
     builder
-        .key_id(&bson::Uuid::new())?
+        .key_id(&[0; 16])?
         .key_alt_name("test")?
         .key_material(&[0; 96])?
         .algorithm(Algorithm::AeadAes256CbcHmacSha512Deterministic)?

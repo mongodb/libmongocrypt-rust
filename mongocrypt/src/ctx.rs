@@ -30,9 +30,8 @@ impl CtxBuilder {
         Self { inner }
     }
 
-    pub fn key_id(self, key_id: &bson::Uuid) -> Result<Self> {
-        let bytes = key_id.bytes();
-        let bin = BinaryRef::new(&bytes);
+    pub fn key_id(self, key_id: &[u8]) -> Result<Self> {
+        let bin = BinaryRef::new(key_id);
         unsafe {
             if !sys::mongocrypt_ctx_setopt_key_id(self.inner, bin.native()) {
                 return Err(self.status().as_error());

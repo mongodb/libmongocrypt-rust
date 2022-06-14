@@ -2,7 +2,7 @@ use std::{path::Path, fs::File, io::Read};
 
 use bson::{Document, Bson, RawDocument, RawDocumentBuf};
 
-use crate::{ctx::{Ctx, State}, error::Result, Crypt, CryptBuilder, LogLevel};
+use crate::{ctx::{Ctx, State, Algorithm}, error::Result, Crypt};
 
 fn load_doc_from_json<P: AsRef<Path>>(path: P) -> Document {
     let file = File::open(path).unwrap();
@@ -137,6 +137,30 @@ fn encryption_decryption() -> Result<()> {
     // Decryption
     let mut ctx = crypt.ctx_builder()
         .build_decrypt(&result)?;
+    run_state_machine(&mut ctx)?;
+
+    Ok(())
+}
+
+#[test]
+fn explicit_encryption_decryption() -> Result<()> {
+    let crypt = init_test_crypt()?;
+
+    // Encryption
+    let key_doc = load_doc_from_json("../testdata/key-document.json");
+    let key_bytes = match key_doc.get("_id").unwrap() {
+        Bson::Binary(bson::Binary { bytes, .. }) => bytes,
+        _ => panic!("non-binary bson"),
+    };
+    let mut ctx = crypt.ctx_builder()
+        .key_id(key_bytes)?
+        .algorithm(Algorithm::AeadAes256CbcHmacSha512Random)?
+        .build_explicit_encrypt(&Bson::String("hello".to_string()))?;
+    let result = run_state_machine(&mut ctx)?;
+
+    // Decryption
+    let mut ctx = crypt.ctx_builder()
+        .build_explicit_decrypt(result.as_bytes())?;
     run_state_machine(&mut ctx)?;
 
     Ok(())
