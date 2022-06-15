@@ -210,6 +210,11 @@ impl CryptBuilder {
         self
     }
 
+    /// Opt-into skipping query analysis.
+    ///
+    /// If opted in:
+    /// * The crypt_shared library will not attempt to be loaded.
+    /// * A `Ctx` will never enter the `State::NeedMarkings` state.
     pub fn bypass_query_analysis(self) -> Self {
         unsafe {
             sys::mongocrypt_setopt_bypass_query_analysis(self.inner);

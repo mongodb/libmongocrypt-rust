@@ -203,6 +203,8 @@ impl CtxBuilder {
         }
     }
 
+    /// Set the index type used for explicit encryption.
+    /// The index type is only used for Queryable Encryption.
     pub fn index_type(self, index_type: IndexType) -> Result<Self> {
         unsafe {
             if !sys::mongocrypt_ctx_setopt_index_type(self.inner, index_type.as_native()) {
@@ -212,6 +214,8 @@ impl CtxBuilder {
         Ok(self)
     }
 
+    /// Set the contention factor used for explicit encryption.
+    /// The contention factor is only used for indexed Queryable Encryption.
     pub fn contention_factor(self, contention_factor: i64) -> Result<Self> {
         unsafe {
             if !sys::mongocrypt_ctx_setopt_contention_factor(self.inner, contention_factor) {
@@ -221,6 +225,11 @@ impl CtxBuilder {
         Ok(self)
     }
 
+    /// Set the index key id to use for explicit Queryable Encryption.
+    ///
+    /// If the index key id not set, the key id from `key_id` is used.
+    /// 
+    /// * `key_id` - The _id (a UUID) of the data key to use from the key vault collection.
     pub fn index_key_id(self, key_id: &bson::Uuid) -> Result<Self> {
         let bytes = key_id.bytes();
         let bin = BinaryRef::new(&bytes);
@@ -232,6 +241,7 @@ impl CtxBuilder {
         Ok(self)
     }
 
+    /// Set the query type to use for explicit Queryable Encryption.
     pub fn query_type(self, query_type: QueryType) -> Result<Self> {
         unsafe {
             if !sys::mongocrypt_ctx_setopt_query_type(self.inner, query_type.as_native()) {
