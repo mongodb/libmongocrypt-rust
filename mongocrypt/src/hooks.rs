@@ -52,21 +52,39 @@ impl CryptBuilder {
         Ok(self)
     }
 
-    pub fn crypto_hooks<
-        Aes256CbcEncrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
-        Aes256CbcDecrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
-        Random: Fn(&mut dyn Write, u32) -> Result<()> + UnwindSafe + 'static,
-        HmacSha512: Fn(&[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
-        HmacSha256: Fn(&[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
-        Sha256: Fn(&[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
-    >(
+    /// Set crypto hooks.
+    /// 
+    /// * `aes_256_cbc_encrypt` - A `crypto fn`.
+    /// * `aes_256_cbc_decrypt` - A `crypto fn`.
+    /// * `random` - A `random fn`.
+    /// * `hmac_sha_512` - A `hmac fn`.
+    /// * `hmac_sha_256` - A `hmac fn`.
+    /// * `sha_256` - A `hash fn`.
+    /// 
+    /// The `Fn` bounds used here fall into four distinct kinds, some of which are reused elswhere:
+    /// * `crypto fn` - A crypto AES-256-CBC encrypt or decrypt function.
+    ///   - `key` - An encryption key (32 bytes for AES_256).
+    ///   - `iv` - An initialization vector (16 bytes for AES_256).
+    ///   - `in` - The input.  Note, this is already padded.  Encrypt with padding disabled.
+    ///   - `out` - The output.
+    /// * `hmac fn` - A crypto signature or HMAC function.
+    ///   - `key` - An encryption key (32 bytes for HMAC_SHA512).
+    ///   - `in` - The input.
+    ///   - `out` - The output.
+    /// * `hash fn` - A crypto hash (SHA-256) function.
+    ///   - `in` - The input.
+    ///   - `out` - The output.
+    /// * `random fn` - A crypto secure random function.
+    ///   - `out` - The output.
+    ///   - `count` - The number of random bytes requested.
+    pub fn crypto_hooks(
         mut self,
-        aes_256_cbc_encrypt: Aes256CbcEncrypt,
-        aes_256_cbc_decrypt: Aes256CbcDecrypt,
-        random: Random,
-        hmac_sha_512: HmacSha512,
-        hmac_sha_256: HmacSha256,
-        sha_256: Sha256,
+        aes_256_cbc_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        aes_256_cbc_decrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        random: impl Fn(&mut dyn Write, u32) -> Result<()> + UnwindSafe + 'static,
+        hmac_sha_512: impl Fn(&[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        hmac_sha_256: impl Fn(&[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        sha_256: impl Fn(&[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
     ) -> Result<Self> {
         let hooks = Box::new(CryptoHooks {
             aes_256_cbc_encrypt: Box::new(aes_256_cbc_encrypt),
@@ -94,13 +112,16 @@ impl CryptBuilder {
         Ok(self)
     }
 
-    pub fn aes_256_ctr<
-        Aes256CtrEncrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
-        Aes256CtrDecrypt: Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
-    >(
+    /// Set a crypto hook for the AES256-CTR operations.
+    /// 
+    /// * `aes_256_ctr_encrypt` - A `crypto fn`.  The crypto callback function for encrypt
+    /// operation.
+    /// * `aes_256_ctr_decrypt` - A `crypto fn`.  The crypto callback function for decrypt
+    /// operation.
+    pub fn aes_256_ctr(
         mut self,
-        aes_256_ctr_encrypt: Aes256CtrEncrypt,
-        aes_256_ctr_decrypt: Aes256CtrDecrypt,
+        aes_256_ctr_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        aes_256_ctr_decrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
     ) -> Result<Self> {
         struct Hooks {
             aes_256_ctr_encrypt: CryptoFn,
@@ -164,6 +185,11 @@ impl CryptBuilder {
         Ok(self)
     }
 
+    /// Set an AES256-ECB crypto hook for the AES256-CTR operations. If CTR hook was
+    /// configured using `aes_256_ctr`, ECB hook will be ignored.
+    /// 
+    /// * `aes_256_ecb_encrypt` - A `crypto fn`.  The crypto callback function for encrypt
+    /// operation.
     pub fn aes_256_ecb(
         mut self,
         aes_256_ecb_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()>
@@ -196,6 +222,11 @@ impl CryptBuilder {
         Ok(self)
     }
 
+    /// Set a crypto hook for the RSASSA-PKCS1-v1_5 algorithm with a SHA-256 hash.
+    ///
+    /// See: https://tools.ietf.org/html/rfc3447#section-8.2
+    /// 
+    /// * `sign_rsaes_pkcs1_v1_5` - A `hmac fn`.  The crypto callback function.
     pub fn crypto_hook_sign_rsassa_pkcs1_v1_5(
         mut self,
         sign_rsaes_pkcs1_v1_5: impl Fn(&[u8], &[u8], &mut dyn Write) -> Result<()>
@@ -260,24 +291,9 @@ fn run_hook(hook: impl FnOnce() -> Result<()> + UnwindSafe) -> Result<()> {
         .map_err(Into::into)
 }
 
-/// Parameters:
-/// * encryption key (32 bytes for AES_256)
-/// * initialization vector (16 bytes for AES_256)
-/// * the input
-/// * destination for output
 type CryptoFn = Box<dyn Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe>;
-/// Parameters:
-/// * destination for output
-/// * number of random bytes requested
 type RandomFn = Box<dyn Fn(&mut dyn Write, u32) -> Result<()> + UnwindSafe>;
-/// Parameters:
-/// * encryption key (32 bytes for HMAC_SHA512)
-/// * the input
-/// * destination for output
 type HmacFn = Box<dyn Fn(&[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe>;
-/// Parameters
-/// * the input
-/// * destination for output
 type HashFn = Box<dyn Fn(&[u8], &mut dyn Write) -> Result<()> + UnwindSafe>;
 
 struct CryptoHooks {
