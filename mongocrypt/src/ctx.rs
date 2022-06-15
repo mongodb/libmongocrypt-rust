@@ -15,7 +15,7 @@ pub struct CtxBuilder {
 
 impl Drop for CtxBuilder {
     fn drop(&mut self) {
-        if self.inner != ptr::null_mut() {
+        if !self.inner.is_null() {
             unsafe {
                 sys::mongocrypt_ctx_destroy(self.inner);
             }
@@ -53,7 +53,7 @@ impl CtxBuilder {
 
     /// Set the keyAltName to use for explicit encryption or
     /// data key creation.   
-    /// 
+    ///
     /// For explicit encryption, it is an error to set both the keyAltName
     /// and the key id.
     ///
@@ -70,7 +70,7 @@ impl CtxBuilder {
     }
 
     /// Set the keyMaterial to use for encrypting data.
-    /// 
+    ///
     /// * `key_material` - The data encryption key to use.
     pub fn key_material(self, key_material: &[u8]) -> Result<Self> {
         let bson_bin = bson::Binary {
@@ -101,7 +101,7 @@ impl CtxBuilder {
     /// Identify the AWS KMS master key to use for creating a data key.
     ///
     /// This has been superseded by the more flexible `key_encryption_key`.
-    /// 
+    ///
     /// * `region` - The AWS region.
     /// * `cmk` - The Amazon Resource Name (ARN) of the customer master key (CMK).
     pub fn masterkey_aws(self, region: &str, cmk: &str) -> Result<Self> {
@@ -139,7 +139,7 @@ impl CtxBuilder {
     }
 
     /// Set the master key to "local" for creating a data key.
-    /// 
+    ///
     /// This has been superseded by the more flexible `key_encryption_key`.
     pub fn masterkey_local(self) -> Result<Self> {
         unsafe {
@@ -152,7 +152,7 @@ impl CtxBuilder {
 
     /// Set key encryption key document for creating a data key or for rewrapping
     /// datakeys.   
-    /// 
+    ///
     /// The following forms are accepted:
     ///
     /// AWS
@@ -228,7 +228,7 @@ impl CtxBuilder {
     /// Set the index key id to use for explicit Queryable Encryption.
     ///
     /// If the index key id not set, the key id from `key_id` is used.
-    /// 
+    ///
     /// * `key_id` - The _id (a UUID) of the data key to use from the key vault collection.
     pub fn index_key_id(self, key_id: &bson::Uuid) -> Result<Self> {
         let bytes = key_id.bytes();
@@ -268,7 +268,7 @@ impl CtxBuilder {
     }
 
     /// Initialize a context for encryption.
-    /// 
+    ///
     /// * `db` - The database name.
     /// * `cmd` - The BSON command to be encrypted.
     pub fn build_encrypt(self, db: &str, cmd: &RawDocument) -> Result<Ctx> {
@@ -284,13 +284,13 @@ impl CtxBuilder {
 
     /// Explicit helper method to encrypt a single BSON object. Contexts
     /// created for explicit encryption will not go through mongocryptd.   
-    /// 
+    ///
     /// To specify a key_id, algorithm, or iv to use, please use the
     /// corresponding methods before calling this.
-    /// 
+    ///
     /// An error is returned if FLE 1 and Queryable Encryption incompatible options
     /// are set.
-    /// 
+    ///
     /// * `value` - the plaintext BSON value.
     pub fn build_explicit_encrypt(self, value: &bson::Bson) -> Result<Ctx> {
         let bin = doc_binary(&doc! { "v": value })?;
@@ -316,7 +316,7 @@ impl CtxBuilder {
     }
 
     /// Explicit helper method to decrypt a single BSON object.
-    /// 
+    ///
     /// * `msg` - the encrypted BSON.
     pub fn build_explicit_decrypt(self, msg: &[u8]) -> Result<Ctx> {
         let bson_bin = bson::Binary {
@@ -333,11 +333,11 @@ impl CtxBuilder {
     }
 
     /// Initialize a context to rewrap datakeys.
-    /// 
+    ///
     /// * `filter` - The filter to use for the find command on the key vault
     /// collection to retrieve datakeys to rewrap.
     pub fn build_rewrap_many_datakey(self, filter: &RawDocument) -> Result<Ctx> {
-        let bin = BinaryRef::new(&filter.as_bytes());
+        let bin = BinaryRef::new(filter.as_bytes());
         unsafe {
             if !sys::mongocrypt_ctx_rewrap_many_datakey_init(self.inner, bin.native()) {
                 return Err(self.status().as_error());
@@ -402,7 +402,7 @@ pub struct Ctx {
 
 impl Drop for Ctx {
     fn drop(&mut self) {
-        if self.inner != ptr::null_mut() {
+        if !self.inner.is_null() {
             unsafe {
                 sys::mongocrypt_ctx_destroy(self.inner);
             }
@@ -428,7 +428,7 @@ impl Ctx {
     }
 
     /// Get BSON necessary to run the mongo operation when in `State::NeedMongo*` states.
-    /// 
+    ///
     /// The returned value:
     /// * for `State::NeedMongoCollinfo` it is a listCollections filter.
     /// * for `State::NeedMongoKeys` it is a find filter.
@@ -452,7 +452,7 @@ impl Ctx {
     /// Feed a BSON reply or result when this context is in
     /// `State::NeedMongo*` states. This may be called multiple times
     /// depending on the operation.
-    /// 
+    ///
     /// `reply` is a BSON document result being fed back for this operation.
     /// - For `State::NeedMongoCollinfo` it is a doc from a listCollections
     /// cursor. (Note, if listCollections returned no result, do not call this
@@ -500,7 +500,7 @@ impl Ctx {
     }
 
     /// Perform the final encryption or decryption.
-    /// 
+    ///
     /// If this context was initialized with `CtxBuilder::build_encrypt`, then
     /// this BSON is the (possibly) encrypted command to send to the server.
     ///
@@ -591,7 +591,7 @@ impl<'ctx> KmsScope<'ctx> {
     /// TLS socket to send HTTP requests and receive responses.
     pub fn next_kms_ctx(&self) -> Option<KmsCtx> {
         let inner = unsafe { sys::mongocrypt_ctx_next_kms_ctx(self.ctx.inner) };
-        if inner == ptr::null_mut() {
+        if inner.is_null() {
             return None;
         }
         Some(KmsCtx {
@@ -640,7 +640,7 @@ impl<'scope> KmsCtx<'scope> {
     }
 
     /// Get the hostname from which to connect over TLS.
-    /// 
+    ///
     /// The endpoint consists of a hostname and port separated by a colon.
     /// E.g. "example.com:123". A port is always present.
     pub fn endpoint(&self) -> Result<&'scope str> {
@@ -662,7 +662,7 @@ impl<'scope> KmsCtx<'scope> {
     }
 
     /// Feed bytes from the HTTP response.
-    /// 
+    ///
     /// Feeding more bytes than what has been returned in `bytes_needed` is an error.
     pub fn feed(&mut self, bytes: &[u8]) -> Result<()> {
         let bin = BinaryRef::new(bytes);
@@ -675,11 +675,11 @@ impl<'scope> KmsCtx<'scope> {
     }
 
     /// Get the KMS provider identifier associated with this KMS request.
-    /// 
+    ///
     /// This is used to conditionally configure TLS connections based on the KMS
     /// request. It is useful for KMIP, which authenticates with a client
     /// certificate.
-    /// 
+    ///
     /// Returns one of the static strings: "aws", "azure", "gcp", or "kmip".
     pub fn get_kms_provider(&self) -> Result<&'static str> {
         unsafe {

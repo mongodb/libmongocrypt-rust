@@ -53,14 +53,14 @@ impl CryptBuilder {
     }
 
     /// Set crypto hooks.
-    /// 
+    ///
     /// * `aes_256_cbc_encrypt` - A `crypto fn`.
     /// * `aes_256_cbc_decrypt` - A `crypto fn`.
     /// * `random` - A `random fn`.
     /// * `hmac_sha_512` - A `hmac fn`.
     /// * `hmac_sha_256` - A `hmac fn`.
     /// * `sha_256` - A `hash fn`.
-    /// 
+    ///
     /// The `Fn` bounds used here fall into four distinct kinds, some of which are reused elswhere:
     /// * `crypto fn` - A crypto AES-256-CBC encrypt or decrypt function.
     ///   - `key` - An encryption key (32 bytes for AES_256).
@@ -79,8 +79,12 @@ impl CryptBuilder {
     ///   - `count` - The number of random bytes requested.
     pub fn crypto_hooks(
         mut self,
-        aes_256_cbc_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
-        aes_256_cbc_decrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        aes_256_cbc_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()>
+            + UnwindSafe
+            + 'static,
+        aes_256_cbc_decrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()>
+            + UnwindSafe
+            + 'static,
         random: impl Fn(&mut dyn Write, u32) -> Result<()> + UnwindSafe + 'static,
         hmac_sha_512: impl Fn(&[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
         hmac_sha_256: impl Fn(&[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
@@ -113,15 +117,19 @@ impl CryptBuilder {
     }
 
     /// Set a crypto hook for the AES256-CTR operations.
-    /// 
+    ///
     /// * `aes_256_ctr_encrypt` - A `crypto fn`.  The crypto callback function for encrypt
     /// operation.
     /// * `aes_256_ctr_decrypt` - A `crypto fn`.  The crypto callback function for decrypt
     /// operation.
     pub fn aes_256_ctr(
         mut self,
-        aes_256_ctr_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
-        aes_256_ctr_decrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()> + UnwindSafe + 'static,
+        aes_256_ctr_encrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()>
+            + UnwindSafe
+            + 'static,
+        aes_256_ctr_decrypt: impl Fn(&[u8], &[u8], &[u8], &mut dyn Write) -> Result<()>
+            + UnwindSafe
+            + 'static,
     ) -> Result<Self> {
         struct Hooks {
             aes_256_ctr_encrypt: CryptoFn,
@@ -187,7 +195,7 @@ impl CryptBuilder {
 
     /// Set an AES256-ECB crypto hook for the AES256-CTR operations. If CTR hook was
     /// configured using `aes_256_ctr`, ECB hook will be ignored.
-    /// 
+    ///
     /// * `aes_256_ecb_encrypt` - A `crypto fn`.  The crypto callback function for encrypt
     /// operation.
     pub fn aes_256_ecb(
@@ -225,7 +233,7 @@ impl CryptBuilder {
     /// Set a crypto hook for the RSASSA-PKCS1-v1_5 algorithm with a SHA-256 hash.
     ///
     /// See: https://tools.ietf.org/html/rfc3447#section-8.2
-    /// 
+    ///
     /// * `sign_rsaes_pkcs1_v1_5` - A `hmac fn`.  The crypto callback function.
     pub fn crypto_hook_sign_rsassa_pkcs1_v1_5(
         mut self,

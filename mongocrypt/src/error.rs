@@ -117,7 +117,10 @@ impl Status {
                 inner_err = Error {
                     kind: ErrorKind::Client,
                     code: err.code,
-                    message: err.message.as_ref().map(|s| format!("{:?}: {}", err.kind, s)),
+                    message: err
+                        .message
+                        .as_ref()
+                        .map(|s| format!("{:?}: {}", err.kind, s)),
                 };
                 err = &inner_err;
                 sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT
@@ -125,7 +128,7 @@ impl Status {
         };
         let (message_ptr, message_len) = match &err.message {
             Some(message) => {
-                let (ptr, len) = str_bytes_len(&message)?;
+                let (ptr, len) = str_bytes_len(message)?;
                 (ptr, len + 1)
             }
             None => (ptr::null(), 0),
@@ -147,7 +150,7 @@ impl Status {
         };
         let code = unsafe { sys::mongocrypt_status_code(self.inner) };
         let message_ptr = unsafe { sys::mongocrypt_status_message(self.inner, ptr::null_mut()) };
-        let message = if message_ptr == ptr::null_mut() {
+        let message = if message_ptr.is_null() {
             None
         } else {
             let c_message = unsafe { CStr::from_ptr(message_ptr) };

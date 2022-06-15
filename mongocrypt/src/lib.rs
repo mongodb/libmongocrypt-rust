@@ -36,6 +36,7 @@ impl HasStatus for CryptBuilder {
 }
 
 impl CryptBuilder {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             inner: unsafe { sys::mongocrypt_new() },
@@ -44,9 +45,9 @@ impl CryptBuilder {
     }
 
     /// Configure an AWS KMS provider.
-    /// 
+    ///
     /// This has been superseded by the more flexible `kms_providers` method.
-    /// 
+    ///
     /// * `aws_access_key_id` - The AWS access key ID used to generate KMS messages.
     /// * `aws_secret_access_key` - The AWS secret access key used to generate KMS messages.
     pub fn kms_provider_aws(
@@ -71,9 +72,9 @@ impl CryptBuilder {
     }
 
     /// Configure a local KMS provider.
-    /// 
+    ///
     /// This has been superseded by the more flexible `kms_providers` method.
-    /// 
+    ///
     /// * `key` - A 96 byte master key used to encrypt and decrypt key vault keys.
     pub fn kms_provider_local(self, key: &[u8]) -> Result<Self> {
         let bin = BinaryRef::new(key);
@@ -86,7 +87,7 @@ impl CryptBuilder {
     }
 
     /// Configure KMS providers with a BSON document.
-    /// 
+    ///
     /// * `kms_providers` - A BSON document mapping the KMS provider names
     /// to credentials. Set a KMS provider value to an empty document to supply
     /// credentials on-demand with `Ctx::provide_kms_providers`.
@@ -101,7 +102,7 @@ impl CryptBuilder {
     }
 
     /// Set a local schema map for encryption.
-    /// 
+    ///
     /// * `schema_map` - A BSON document representing the schema map supplied by
     /// the user. The keys are collection namespaces and values are JSON schemas.
     pub fn schema_map(self, schema_map: &Document) -> Result<Self> {
@@ -115,7 +116,7 @@ impl CryptBuilder {
     }
 
     /// Set a local EncryptedFieldConfigMap for encryption.
-    /// 
+    ///
     /// * `efc_map` - A BSON document representing the EncryptedFieldConfigMap
     /// supplied by the user. The keys are collection namespaces and values are
     /// EncryptedFieldConfigMap documents.
@@ -131,24 +132,24 @@ impl CryptBuilder {
 
     /// Append an additional search directory to the search path for loading
     /// the crypt_shared dynamic library.
-    /// 
+    ///
     /// If the leading element of
     /// the path is the literal string "$ORIGIN", that substring will be replaced
     /// with the directory path containing the executable libmongocrypt module. If
     /// the path string is literal "$SYSTEM", then libmongocrypt will defer to the
     /// system's library resolution mechanism to find the crypt_shared library.
-    /// 
+    ///
     /// If no crypt_shared dynamic library is found in any of the directories
     /// specified by the search paths loaded here, `build` will still
     /// succeed and continue to operate without crypt_shared.
-    /// 
+    ///
     /// The search paths are searched in the order that they are appended. This
     /// allows one to provide a precedence in how the library will be discovered. For
     /// example, appending known directories before appending "$SYSTEM" will allow
     /// one to supersede the system's installed library, but still fall-back to it if
     /// the library wasn't found otherwise. If one does not ever append "$SYSTEM",
     /// then the system's library-search mechanism will never be consulted.
-    /// 
+    ///
     /// If an absolute path to the library is specified using
     /// `set_crypt_shared_lib_path_override`, then paths
     /// appended here will have no effect.
@@ -166,18 +167,18 @@ impl CryptBuilder {
 
     /// Set a single override path for loading the crypt_shared dynamic
     /// library.
-    /// 
+    ///
     /// If the leading element of the path is the literal string
     /// `$ORIGIN`, that substring will be replaced with the directory path containing
     /// the executable libmongocrypt module.
-    /// 
+    ///
     /// This function will do no IO nor path validation. All validation will
     /// occur during the call to `build`.
-    /// 
+    ///
     /// If a crypt_shared library path override is specified here, then no
     /// paths given to `append_crypt_shared_lib_search_path`
     /// will be consulted when opening the crypt_shared library.
-    /// 
+    ///
     /// If a path is provided via this API and `build` fails to
     /// initialize a valid crypt_shared library instance for the path specified, then
     /// the initialization will fail with an error.
@@ -194,7 +195,7 @@ impl CryptBuilder {
     }
 
     /// Opt-into handling the MONGOCRYPT_CTX_NEED_KMS_CREDENTIALS state.
-    /// 
+    ///
     /// If set, before entering the MONGOCRYPT_CTX_NEED_KMS state,
     /// contexts may enter the MONGOCRYPT_CTX_NEED_KMS_CREDENTIALS state
     /// and then wait for credentials to be supplied through
@@ -238,7 +239,7 @@ impl CryptBuilder {
 
 impl Drop for CryptBuilder {
     fn drop(&mut self) {
-        if self.inner != ptr::null_mut() {
+        if !self.inner.is_null() {
             unsafe {
                 sys::mongocrypt_destroy(self.inner);
             }
@@ -247,10 +248,10 @@ impl Drop for CryptBuilder {
 }
 
 /// The top-level handle to libmongocrypt.
-/// 
+///
 /// Create a `Crypt` handle to perform operations within libmongocrypt:
 /// encryption, decryption, registering log callbacks, etc.
-/// 
+///
 /// Multiple `Crypt` handles may be created.
 pub struct Crypt {
     inner: *mut sys::mongocrypt_t,
@@ -262,7 +263,7 @@ unsafe impl Sync for Crypt {}
 
 impl Drop for Crypt {
     fn drop(&mut self) {
-        if self.inner != ptr::null_mut() {
+        if !self.inner.is_null() {
             unsafe {
                 sys::mongocrypt_destroy(self.inner);
             }
@@ -277,12 +278,12 @@ impl Crypt {
 
     /// Obtain a version string of the loaded crypt_shared dynamic
     /// library, if available.
-    /// 
+    ///
     /// For a numeric value that can be compared against, use `shared_lib_version`.
     pub fn shared_lib_version_string(&self) -> Option<String> {
         let s_ptr =
             unsafe { sys::mongocrypt_crypt_shared_lib_version_string(self.inner, ptr::null_mut()) };
-        if s_ptr == ptr::null() {
+        if s_ptr.is_null() {
             return None;
         }
         let s = unsafe { CStr::from_ptr(s_ptr) };
@@ -291,7 +292,7 @@ impl Crypt {
 
     /// Obtain a 64-bit constant encoding the version of the loaded
     /// crypt_shared library, if available.
-    /// 
+    ///
     /// The version is encoded as four 16-bit numbers, from high to low:
     ///
     /// - Major version
