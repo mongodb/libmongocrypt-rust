@@ -51,6 +51,7 @@ functions:
 
   "compile only":
     - command: shell.exec
+      type: test
       params:
         working_dir: "src"
         script: |
@@ -59,6 +60,7 @@ functions:
 
   "run tests":
     - command: shell.exec
+      type: test
       params:
         working_dir: "src"
         script: |

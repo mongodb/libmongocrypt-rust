@@ -11,4 +11,7 @@ if [[ "Windows_NT" == "$OS" ]]; then
     export CARGO_HOME=$(cygpath ${CARGO_HOME} --windows)
 fi
 
+export MONGOCRYPT_LIB_DIR="${PROJECT_DIRECTORY}/native/ubuntu1804-64/lib"
+export LD_LIBRARY_PATH="${MONGOCRYPT_LIB_DIR}:${LD_LIBRARY_PATH}"
+
 . ${CARGO_HOME}/env
