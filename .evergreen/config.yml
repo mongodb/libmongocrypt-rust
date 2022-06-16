@@ -67,16 +67,17 @@ functions:
           ${PREPARE_SHELL}
           .evergreen/run-tests.sh
 
+pre_error_fails_task: true
+pre:
+  - func: "fetch source"
+  - func: "install dependencies"
+
 tasks:
 - name: "compile-only"
   commands:
-    - func: "fetch source"
-    - func: "install dependencies"
     - func: "compile only"
 
 - name: "test"
-  depends_on:
-  - name: "compile-only"
   commands:
     - func: "run tests"
 
