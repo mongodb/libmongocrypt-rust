@@ -30,3 +30,8 @@ mkdir native
 cd native
 curl -sSfO https://s3.amazonaws.com/mciuploads/libmongocrypt/all/master/latest/libmongocrypt-all.tar.gz
 tar xzf libmongocrypt-all.tar.gz
+
+if [ "Windows_NT" == "$OS" ]; then
+    cp ${MONGOCRYPT_LIB_DIR}/../bin/*.dll .
+    chmod +x *.dll
+fi

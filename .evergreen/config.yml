@@ -74,7 +74,7 @@ tasks:
 
 buildvariants:
 - name: ubuntu
-  display_name: Ubuntu
+  display_name: "Ubuntu 18.04"
   run_on: ubuntu1804-test
   expansions:
     libmongocrypt_os: "ubuntu1804-64"
@@ -82,10 +82,18 @@ buildvariants:
   - name: "compile-only"
   - name: "test"
 - name: macos
-  display_name: MacOS
+  display_name: "MacOS 10.14"
   run_on: macos-1014
   expansions:
     libmongocrypt_os: "macos"
+  tasks:
+  - name: "compile-only"
+  - name: "test"
+- name: windows
+  display_name: "Windows (VS 2017)"
+  run_on: windows-64-vs2017-test
+  expansions:
+    libmongocrypt_os: "windows-test/nocrypto"
   tasks:
   - name: "compile-only"
   - name: "test"
