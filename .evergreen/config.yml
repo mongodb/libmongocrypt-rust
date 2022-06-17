@@ -19,79 +19,73 @@ timeout:
     script: |
       ls -la
 
-functions:
-  "fetch source":
-    - command: git.get_project
-      params:
-        directory: src
-    - command: shell.exec
-      params:
-        working_dir: "src"
-        script: |
-          export PROJECT_DIRECTORY="$(pwd)"
-          export MONGOCRYPT_LIB_DIR="$PROJECT_DIRECTORY/native/${libmongocrypt_os}/lib"
-          export LD_LIBRARY_PATH="$MONGOCRYPT_LIB_DIR:$LD_LIBRARY_PATH"
-
-          cat <<EOT > expansion.yml
-          PREPARE_SHELL: |
-            set -o errexit
-            set -o xtrace
-            export PROJECT_DIRECTORY="$PROJECT_DIRECTORY"
-            export MONGOCRYPT_LIB_DIR="$MONGOCRYPT_LIB_DIR"
-            export LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
-          EOT
-          cat expansion.yml
-    - command: expansions.update
-      params:
-        file: src/expansion.yml
-
-  "install dependencies":
-    - command: shell.exec
-      params:
-        working_dir: "src"
-        script: |
-          ${PREPARE_SHELL}
-          .evergreen/install-dependencies.sh
-
-  "compile only":
-    - command: shell.exec
-      type: test
-      params:
-        working_dir: "src"
-        script: |
-          ${PREPARE_SHELL}
-          .evergreen/compile-only.sh
-
-  "run tests":
-    - command: shell.exec
-      type: test
-      params:
-        working_dir: "src"
-        script: |
-          ${PREPARE_SHELL}
-          .evergreen/run-tests.sh
-
 pre_error_fails_task: true
 pre:
-  - func: "fetch source"
-  - func: "install dependencies"
+- command: git.get_project
+  params:
+    directory: src
+- command: shell.exec
+  params:
+    working_dir: "src"
+    script: |
+      export PROJECT_DIRECTORY="$(pwd)"
+      export MONGOCRYPT_LIB_DIR="$PROJECT_DIRECTORY/native/${libmongocrypt_os}/lib"
+      export LD_LIBRARY_PATH="$MONGOCRYPT_LIB_DIR:$LD_LIBRARY_PATH"
+
+      cat <<EOT > expansion.yml
+      PREPARE_SHELL: |
+        set -o errexit
+        set -o xtrace
+        export PROJECT_DIRECTORY="$PROJECT_DIRECTORY"
+        export MONGOCRYPT_LIB_DIR="$MONGOCRYPT_LIB_DIR"
+        export LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
+      EOT
+      cat expansion.yml
+- command: expansions.update
+  params:
+    file: src/expansion.yml
+- command: shell.exec
+  params:
+    working_dir: "src"
+    script: |
+      ${PREPARE_SHELL}
+      .evergreen/install-dependencies.sh
 
 tasks:
 - name: "compile-only"
   commands:
-    - func: "compile only"
+  - command: shell.exec
+    type: test
+    params:
+      working_dir: "src"
+      script: |
+        ${PREPARE_SHELL}
+        .evergreen/compile-only.sh
 
 - name: "test"
   commands:
-    - func: "run tests"
+  - command: shell.exec
+    type: test
+    params:
+      working_dir: "src"
+      script: |
+        ${PREPARE_SHELL}
+        .evergreen/run-tests.sh
 
 buildvariants:
 - name: ubuntu
   display_name: Ubuntu
-  run_on:
-  - ubuntu1804-test
+  run_on: ubuntu1804-test
   expansions:
     libmongocrypt_os: "ubuntu1804-64"
+  tasks:
+  - name: "compile-only"
+  - name: "test"
+- name: macos
+  display_name: MacOS
+  run_on: macos-1014
+  expansions:
+    libmongocrypt_os: "macos"
   tasks:
   - name: "compile-only"
   - name: "test"
