@@ -29,12 +29,16 @@ functions:
         working_dir: "src"
         script: |
           export PROJECT_DIRECTORY="$(pwd)"
+          export MONGOCRYPT_LIB_DIR="$PROJECT_DIRECTORY/native/${libmongocrypt_os}/lib"
+          export LD_LIBRARY_PATH="$MONGOCRYPT_LIB_DIR:$LD_LIBRARY_PATH"
 
           cat <<EOT > expansion.yml
           PREPARE_SHELL: |
             set -o errexit
             set -o xtrace
             export PROJECT_DIRECTORY="$PROJECT_DIRECTORY"
+            export MONGOCRYPT_LIB_DIR="$MONGOCRYPT_LIB_DIR"
+            export LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
           EOT
           cat expansion.yml
     - command: expansions.update
@@ -86,6 +90,8 @@ buildvariants:
   display_name: Ubuntu
   run_on:
   - ubuntu1804-test
+  expansions:
+    libmongocrypt_os: "ubuntu1804-64"
   tasks:
   - name: "compile-only"
   - name: "test"
