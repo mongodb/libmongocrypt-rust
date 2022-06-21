@@ -93,7 +93,7 @@ buildvariants:
   display_name: "Windows (VS 2017)"
   run_on: windows-64-vs2017-test
   expansions:
-    libmongocrypt_os: "windows-test/nocrypto"
+    libmongocrypt_os: "windows-test"
   tasks:
   - name: "compile-only"
   - name: "test"

@@ -32,6 +32,5 @@ curl -sSfO https://s3.amazonaws.com/mciuploads/libmongocrypt/all/master/latest/l
 tar xzf libmongocrypt-all.tar.gz
 
 if [ "Windows_NT" == "$OS" ]; then
-    cp ${MONGOCRYPT_LIB_DIR}/../bin/*.dll .
-    chmod +x *.dll
+    chmod +x ${MONGOCRYPT_LIB_DIR}/../bin/*.dll
 fi
