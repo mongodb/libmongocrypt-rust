@@ -10,7 +10,7 @@ pub(crate) struct OwnedPtr<T> {
 #[cfg(all(test, feature = "compile_fail"))]
 #[test]
 fn use_after_free() {
-    unsafe extern "C" fn destroy(_ptr: *mut ()) { }
+    unsafe extern "C" fn destroy(_ptr: *mut ()) {}
     let owned: OwnedPtr<()> = OwnedPtr::new(std::ptr::null_mut(), destroy);
     let ptr = owned.borrow();
     std::mem::drop(owned);

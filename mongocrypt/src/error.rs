@@ -1,7 +1,8 @@
 use std::{
+    borrow::Borrow,
     ffi::CStr,
     fmt::{Debug, Display},
-    ptr, borrow::Borrow,
+    ptr,
 };
 
 use mongocrypt_sys as sys;
@@ -96,7 +97,9 @@ impl Status {
     }
 
     pub(crate) fn from_native(inner: *mut sys::mongocrypt_status_t) -> Self {
-        Self { inner: OwnedPtr::new(inner, sys::mongocrypt_status_destroy) }
+        Self {
+            inner: OwnedPtr::new(inner, sys::mongocrypt_status_destroy),
+        }
     }
 
     pub(crate) fn native(&self) -> &*mut sys::mongocrypt_status_t {
@@ -147,7 +150,8 @@ impl Status {
             _ => return Err(internal!("unhandled status type {}", typ)),
         };
         let code = unsafe { sys::mongocrypt_status_code(*self.native()) };
-        let message_ptr = unsafe { sys::mongocrypt_status_message(*self.native(), ptr::null_mut()) };
+        let message_ptr =
+            unsafe { sys::mongocrypt_status_message(*self.native(), ptr::null_mut()) };
         let message = if message_ptr.is_null() {
             None
         } else {

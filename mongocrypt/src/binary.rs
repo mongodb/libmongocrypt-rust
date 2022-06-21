@@ -16,16 +16,13 @@ impl Binary {
             inner: OwnedPtr::new(
                 unsafe { sys::mongocrypt_binary_new() },
                 sys::mongocrypt_binary_destroy,
-            )
+            ),
         }
     }
 
     fn new_from(inner: *mut sys::mongocrypt_binary_t) -> Self {
         Self {
-            inner: OwnedPtr::new(
-                inner,
-                sys::mongocrypt_binary_destroy,
-            )
+            inner: OwnedPtr::new(inner, sys::mongocrypt_binary_destroy),
         }
     }
 

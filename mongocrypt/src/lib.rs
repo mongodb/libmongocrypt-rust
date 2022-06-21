@@ -1,4 +1,4 @@
-use std::{ffi::CStr, path::Path, ptr, borrow::Borrow};
+use std::{borrow::Borrow, ffi::CStr, path::Path, ptr};
 
 use binary::BinaryRef;
 use bson::Document;
@@ -125,7 +125,10 @@ impl CryptBuilder {
     pub fn encrypted_field_config_map(self, efc_map: &Document) -> Result<Self> {
         let binary = doc_binary(efc_map)?;
         unsafe {
-            if !sys::mongocrypt_setopt_encrypted_field_config_map(*self.inner.borrow(), *binary.native()) {
+            if !sys::mongocrypt_setopt_encrypted_field_config_map(
+                *self.inner.borrow(),
+                *binary.native(),
+            ) {
                 return Err(self.status().as_error());
             }
         }
@@ -261,8 +264,12 @@ impl Crypt {
     ///
     /// For a numeric value that can be compared against, use `shared_lib_version`.
     pub fn shared_lib_version_string(&self) -> Option<String> {
-        let s_ptr =
-            unsafe { sys::mongocrypt_crypt_shared_lib_version_string(*self.inner.borrow_const(), ptr::null_mut()) };
+        let s_ptr = unsafe {
+            sys::mongocrypt_crypt_shared_lib_version_string(
+                *self.inner.borrow_const(),
+                ptr::null_mut(),
+            )
+        };
         if s_ptr.is_null() {
             return None;
         }

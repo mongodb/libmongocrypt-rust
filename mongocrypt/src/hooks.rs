@@ -1,7 +1,8 @@
 use std::{
+    borrow::Borrow,
     ffi::CStr,
     io::Write,
-    panic::{catch_unwind, AssertUnwindSafe, UnwindSafe}, borrow::Borrow,
+    panic::{catch_unwind, AssertUnwindSafe, UnwindSafe},
 };
 
 use crate::{
@@ -42,7 +43,11 @@ impl CryptBuilder {
         let handler: Box<Box<LogCb>> = Box::new(Box::new(handler));
         let handler_ptr = &*handler as *const Box<LogCb> as *mut std::ffi::c_void;
         unsafe {
-            if !sys::mongocrypt_setopt_log_handler(*self.inner.borrow(), Some(log_shim), handler_ptr) {
+            if !sys::mongocrypt_setopt_log_handler(
+                *self.inner.borrow(),
+                Some(log_shim),
+                handler_ptr,
+            ) {
                 return Err(self.status().as_error());
             }
         }

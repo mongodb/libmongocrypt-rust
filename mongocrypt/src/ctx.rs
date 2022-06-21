@@ -1,4 +1,4 @@
-use std::{ffi::CStr, marker::PhantomData, ptr, borrow::Borrow};
+use std::{borrow::Borrow, ffi::CStr, marker::PhantomData, ptr};
 
 use bson::{doc, Document, RawDocument};
 use mongocrypt_sys as sys;
@@ -6,7 +6,8 @@ use mongocrypt_sys as sys;
 use crate::{
     binary::{Binary, BinaryRef},
     convert::{doc_binary, rawdoc, str_bytes_len},
-    error::{self, HasStatus, Result}, native::OwnedPtr,
+    error::{self, HasStatus, Result},
+    native::OwnedPtr,
 };
 
 pub struct CtxBuilder {
@@ -21,7 +22,9 @@ impl HasStatus for CtxBuilder {
 
 impl CtxBuilder {
     pub(crate) fn new(inner: *mut sys::mongocrypt_ctx_t) -> Self {
-        Self { inner: OwnedPtr::new(inner, sys::mongocrypt_ctx_destroy) }
+        Self {
+            inner: OwnedPtr::new(inner, sys::mongocrypt_ctx_destroy),
+        }
     }
 
     /// Set the key id to use for explicit encryption.
@@ -81,7 +84,11 @@ impl CtxBuilder {
     /// should only be set when using explicit encryption.
     pub fn algorithm(self, algorithm: Algorithm) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_algorithm(*self.inner.borrow(), algorithm.c_str().as_ptr(), -1) {
+            if !sys::mongocrypt_ctx_setopt_algorithm(
+                *self.inner.borrow(),
+                algorithm.c_str().as_ptr(),
+                -1,
+            ) {
                 return Err(self.status().as_error());
             }
         }
@@ -121,7 +128,8 @@ impl CtxBuilder {
     pub fn masterkey_aws_endpoint(self, endpoint: &str) -> Result<Self> {
         let (bytes, len) = str_bytes_len(endpoint)?;
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_masterkey_aws_endpoint(*self.inner.borrow(), bytes, len) {
+            if !sys::mongocrypt_ctx_setopt_masterkey_aws_endpoint(*self.inner.borrow(), bytes, len)
+            {
                 return Err(self.status().as_error());
             }
         }
@@ -197,7 +205,8 @@ impl CtxBuilder {
     /// The index type is only used for Queryable Encryption.
     pub fn index_type(self, index_type: IndexType) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_index_type(*self.inner.borrow(), index_type.as_native()) {
+            if !sys::mongocrypt_ctx_setopt_index_type(*self.inner.borrow(), index_type.as_native())
+            {
                 return Err(self.status().as_error());
             }
         }
@@ -208,7 +217,10 @@ impl CtxBuilder {
     /// The contention factor is only used for indexed Queryable Encryption.
     pub fn contention_factor(self, contention_factor: i64) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_contention_factor(*self.inner.borrow(), contention_factor) {
+            if !sys::mongocrypt_ctx_setopt_contention_factor(
+                *self.inner.borrow(),
+                contention_factor,
+            ) {
                 return Err(self.status().as_error());
             }
         }
@@ -234,7 +246,8 @@ impl CtxBuilder {
     /// Set the query type to use for explicit Queryable Encryption.
     pub fn query_type(self, query_type: QueryType) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_query_type(*self.inner.borrow(), query_type.as_native()) {
+            if !sys::mongocrypt_ctx_setopt_query_type(*self.inner.borrow(), query_type.as_native())
+            {
                 return Err(self.status().as_error());
             }
         }
@@ -263,7 +276,12 @@ impl CtxBuilder {
         let (db_bytes, db_len) = str_bytes_len(db)?;
         let cmd_bin = BinaryRef::new(cmd.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_encrypt_init(*self.inner.borrow(), db_bytes, db_len, *cmd_bin.native()) {
+            if !sys::mongocrypt_ctx_encrypt_init(
+                *self.inner.borrow(),
+                db_bytes,
+                db_len,
+                *cmd_bin.native(),
+            ) {
                 return Err(self.status().as_error());
             }
         }
@@ -385,7 +403,7 @@ impl QueryType {
 }
 
 pub struct Ctx {
-    inner:  OwnedPtr<sys::mongocrypt_ctx_t>,
+    inner: OwnedPtr<sys::mongocrypt_ctx_t>,
 }
 
 impl HasStatus for Ctx {
