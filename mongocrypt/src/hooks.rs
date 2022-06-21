@@ -1,7 +1,7 @@
 use std::{
     ffi::CStr,
     io::Write,
-    panic::{catch_unwind, AssertUnwindSafe, UnwindSafe},
+    panic::{catch_unwind, AssertUnwindSafe, UnwindSafe}, borrow::Borrow,
 };
 
 use crate::{
@@ -42,7 +42,7 @@ impl CryptBuilder {
         let handler: Box<Box<LogCb>> = Box::new(Box::new(handler));
         let handler_ptr = &*handler as *const Box<LogCb> as *mut std::ffi::c_void;
         unsafe {
-            if !sys::mongocrypt_setopt_log_handler(self.inner, Some(log_shim), handler_ptr) {
+            if !sys::mongocrypt_setopt_log_handler(*self.inner.borrow(), Some(log_shim), handler_ptr) {
                 return Err(self.status().as_error());
             }
         }
@@ -100,7 +100,7 @@ impl CryptBuilder {
         });
         unsafe {
             if !sys::mongocrypt_setopt_crypto_hooks(
-                self.inner,
+                *self.inner.borrow(),
                 Some(aes_256_cbc_encrypt_shim),
                 Some(aes_256_cbc_decrypt_shim),
                 Some(random_shim),
@@ -181,7 +181,7 @@ impl CryptBuilder {
         }
         unsafe {
             if !sys::mongocrypt_setopt_aes_256_ctr(
-                self.inner,
+                *self.inner.borrow(),
                 Some(aes_256_ctr_encrypt_shim),
                 Some(aes_256_ctr_decrypt_shim),
                 &*hooks as *const Hooks as *mut std::ffi::c_void,
@@ -219,7 +219,7 @@ impl CryptBuilder {
         }
         unsafe {
             if !sys::mongocrypt_setopt_aes_256_ecb(
-                self.inner,
+                *self.inner.borrow(),
                 Some(shim),
                 &*hook as *const CryptoFn as *mut std::ffi::c_void,
             ) {
@@ -254,7 +254,7 @@ impl CryptBuilder {
         }
         unsafe {
             if !sys::mongocrypt_setopt_crypto_hook_sign_rsaes_pkcs1_v1_5(
-                self.inner,
+                *self.inner.borrow(),
                 Some(shim),
                 &*hook as *const HmacFn as *mut std::ffi::c_void,
             ) {

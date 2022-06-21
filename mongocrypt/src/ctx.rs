@@ -1,4 +1,4 @@
-use std::{ffi::CStr, marker::PhantomData, ptr};
+use std::{ffi::CStr, marker::PhantomData, ptr, borrow::Borrow};
 
 use bson::{doc, Document, RawDocument};
 use mongocrypt_sys as sys;
@@ -6,32 +6,22 @@ use mongocrypt_sys as sys;
 use crate::{
     binary::{Binary, BinaryRef},
     convert::{doc_binary, rawdoc, str_bytes_len},
-    error::{self, HasStatus, Result},
+    error::{self, HasStatus, Result}, native::OwnedPtr,
 };
 
 pub struct CtxBuilder {
-    inner: *mut sys::mongocrypt_ctx_t,
-}
-
-impl Drop for CtxBuilder {
-    fn drop(&mut self) {
-        if !self.inner.is_null() {
-            unsafe {
-                sys::mongocrypt_ctx_destroy(self.inner);
-            }
-        }
-    }
+    inner: OwnedPtr<sys::mongocrypt_ctx_t>,
 }
 
 impl HasStatus for CtxBuilder {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
-        sys::mongocrypt_ctx_status(self.inner, status);
+        sys::mongocrypt_ctx_status(*self.inner.borrow(), status);
     }
 }
 
 impl CtxBuilder {
     pub(crate) fn new(inner: *mut sys::mongocrypt_ctx_t) -> Self {
-        Self { inner }
+        Self { inner: OwnedPtr::new(inner, sys::mongocrypt_ctx_destroy) }
     }
 
     /// Set the key id to use for explicit encryption.
@@ -44,7 +34,7 @@ impl CtxBuilder {
     pub fn key_id(self, key_id: &[u8]) -> Result<Self> {
         let bin = BinaryRef::new(key_id);
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_key_id(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_setopt_key_id(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -62,7 +52,7 @@ impl CtxBuilder {
     pub fn key_alt_name(self, key_alt_name: &str) -> Result<Self> {
         let bin = doc_binary(&doc! { "keyAltName": key_alt_name })?;
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_key_alt_name(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_setopt_key_alt_name(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -79,7 +69,7 @@ impl CtxBuilder {
         };
         let bin = doc_binary(&doc! { "keyMaterial": bson_bin })?;
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_key_material(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_setopt_key_material(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -91,7 +81,7 @@ impl CtxBuilder {
     /// should only be set when using explicit encryption.
     pub fn algorithm(self, algorithm: Algorithm) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_algorithm(self.inner, algorithm.c_str().as_ptr(), -1) {
+            if !sys::mongocrypt_ctx_setopt_algorithm(*self.inner.borrow(), algorithm.c_str().as_ptr(), -1) {
                 return Err(self.status().as_error());
             }
         }
@@ -109,7 +99,7 @@ impl CtxBuilder {
         let (cmk_bytes, cmk_len) = str_bytes_len(cmk)?;
         unsafe {
             if !sys::mongocrypt_ctx_setopt_masterkey_aws(
-                self.inner,
+                *self.inner.borrow(),
                 region_bytes,
                 region_len,
                 cmk_bytes,
@@ -131,7 +121,7 @@ impl CtxBuilder {
     pub fn masterkey_aws_endpoint(self, endpoint: &str) -> Result<Self> {
         let (bytes, len) = str_bytes_len(endpoint)?;
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_masterkey_aws_endpoint(self.inner, bytes, len) {
+            if !sys::mongocrypt_ctx_setopt_masterkey_aws_endpoint(*self.inner.borrow(), bytes, len) {
                 return Err(self.status().as_error());
             }
         }
@@ -143,7 +133,7 @@ impl CtxBuilder {
     /// This has been superseded by the more flexible `key_encryption_key`.
     pub fn masterkey_local(self) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_masterkey_local(self.inner) {
+            if !sys::mongocrypt_ctx_setopt_masterkey_local(*self.inner.borrow()) {
                 return Err(self.status().as_error());
             }
         }
@@ -196,7 +186,7 @@ impl CtxBuilder {
     pub fn key_encryption_key(self, key_encryption_key: &Document) -> Result<Self> {
         let bin = doc_binary(key_encryption_key)?;
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_key_encryption_key(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_setopt_key_encryption_key(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
             Ok(self)
@@ -207,7 +197,7 @@ impl CtxBuilder {
     /// The index type is only used for Queryable Encryption.
     pub fn index_type(self, index_type: IndexType) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_index_type(self.inner, index_type.as_native()) {
+            if !sys::mongocrypt_ctx_setopt_index_type(*self.inner.borrow(), index_type.as_native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -218,7 +208,7 @@ impl CtxBuilder {
     /// The contention factor is only used for indexed Queryable Encryption.
     pub fn contention_factor(self, contention_factor: i64) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_contention_factor(self.inner, contention_factor) {
+            if !sys::mongocrypt_ctx_setopt_contention_factor(*self.inner.borrow(), contention_factor) {
                 return Err(self.status().as_error());
             }
         }
@@ -234,7 +224,7 @@ impl CtxBuilder {
         let bytes = key_id.bytes();
         let bin = BinaryRef::new(&bytes);
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_index_key_id(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_setopt_index_key_id(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -244,23 +234,21 @@ impl CtxBuilder {
     /// Set the query type to use for explicit Queryable Encryption.
     pub fn query_type(self, query_type: QueryType) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_query_type(self.inner, query_type.as_native()) {
+            if !sys::mongocrypt_ctx_setopt_query_type(*self.inner.borrow(), query_type.as_native()) {
                 return Err(self.status().as_error());
             }
         }
         Ok(self)
     }
 
-    fn into_ctx(mut self) -> Ctx {
-        let out = Ctx { inner: self.inner };
-        self.inner = ptr::null_mut();
-        out
+    fn into_ctx(self) -> Ctx {
+        Ctx { inner: self.inner }
     }
 
     /// Initialize a context to create a data key.
     pub fn build_datakey(self) -> Result<Ctx> {
         unsafe {
-            if !sys::mongocrypt_ctx_datakey_init(self.inner) {
+            if !sys::mongocrypt_ctx_datakey_init(*self.inner.borrow()) {
                 return Err(self.status().as_error());
             }
         }
@@ -275,7 +263,7 @@ impl CtxBuilder {
         let (db_bytes, db_len) = str_bytes_len(db)?;
         let cmd_bin = BinaryRef::new(cmd.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_encrypt_init(self.inner, db_bytes, db_len, *cmd_bin.native()) {
+            if !sys::mongocrypt_ctx_encrypt_init(*self.inner.borrow(), db_bytes, db_len, *cmd_bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -295,7 +283,7 @@ impl CtxBuilder {
     pub fn build_explicit_encrypt(self, value: &bson::Bson) -> Result<Ctx> {
         let bin = doc_binary(&doc! { "v": value })?;
         unsafe {
-            if !sys::mongocrypt_ctx_explicit_encrypt_init(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_explicit_encrypt_init(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -308,7 +296,7 @@ impl CtxBuilder {
     pub fn build_decrypt(self, doc: &RawDocument) -> Result<Ctx> {
         let bin = BinaryRef::new(doc.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_decrypt_init(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_decrypt_init(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -325,7 +313,7 @@ impl CtxBuilder {
         };
         let bin = doc_binary(&doc! { "v": bson_bin })?;
         unsafe {
-            if !sys::mongocrypt_ctx_explicit_decrypt_init(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_explicit_decrypt_init(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -339,7 +327,7 @@ impl CtxBuilder {
     pub fn build_rewrap_many_datakey(self, filter: &RawDocument) -> Result<Ctx> {
         let bin = BinaryRef::new(filter.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_rewrap_many_datakey_init(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_rewrap_many_datakey_init(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -397,22 +385,12 @@ impl QueryType {
 }
 
 pub struct Ctx {
-    inner: *mut sys::mongocrypt_ctx_t,
-}
-
-impl Drop for Ctx {
-    fn drop(&mut self) {
-        if !self.inner.is_null() {
-            unsafe {
-                sys::mongocrypt_ctx_destroy(self.inner);
-            }
-        }
-    }
+    inner:  OwnedPtr<sys::mongocrypt_ctx_t>,
 }
 
 impl HasStatus for Ctx {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
-        sys::mongocrypt_ctx_status(self.inner, status);
+        sys::mongocrypt_ctx_status(*self.inner.borrow(), status);
     }
 }
 
@@ -420,7 +398,7 @@ impl HasStatus for Ctx {
 impl Ctx {
     /// Get the current state of a context.
     pub fn state(&self) -> Result<State> {
-        let s = unsafe { sys::mongocrypt_ctx_state(self.inner) };
+        let s = unsafe { sys::mongocrypt_ctx_state(*self.inner.borrow()) };
         if s == sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_ERROR {
             return Err(self.status().as_error());
         }
@@ -441,7 +419,7 @@ impl Ctx {
         // one.
         let op_bytes = unsafe {
             let bin = Binary::new();
-            if !sys::mongocrypt_ctx_mongo_op(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_mongo_op(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
             bin.bytes()?
@@ -463,7 +441,7 @@ impl Ctx {
     pub fn mongo_feed(&mut self, reply: &RawDocument) -> Result<()> {
         let bin = BinaryRef::new(reply.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_mongo_feed(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_mongo_feed(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -473,7 +451,7 @@ impl Ctx {
     /// Call when done feeding the reply (or replies) back to the context.
     pub fn mongo_done(&mut self) -> Result<()> {
         unsafe {
-            if !sys::mongocrypt_ctx_mongo_done(self.inner) {
+            if !sys::mongocrypt_ctx_mongo_done(*self.inner.borrow()) {
                 return Err(self.status().as_error());
             }
         }
@@ -492,7 +470,7 @@ impl Ctx {
     pub fn provide_kms_providers(&mut self, kms_providers_definition: &RawDocument) -> Result<()> {
         let bin = BinaryRef::new(kms_providers_definition.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_provide_kms_providers(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_provide_kms_providers(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -526,7 +504,7 @@ impl Ctx {
     pub fn finalize(&mut self) -> Result<&RawDocument> {
         let bytes = unsafe {
             let bin = Binary::new();
-            if !sys::mongocrypt_ctx_finalize(self.inner, *bin.native()) {
+            if !sys::mongocrypt_ctx_finalize(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
             bin.bytes()?
@@ -590,7 +568,7 @@ impl<'ctx> KmsScope<'ctx> {
     /// If KMS handles are being handled synchronously, the driver can reuse the same
     /// TLS socket to send HTTP requests and receive responses.
     pub fn next_kms_ctx(&self) -> Option<KmsCtx> {
-        let inner = unsafe { sys::mongocrypt_ctx_next_kms_ctx(self.ctx.inner) };
+        let inner = unsafe { sys::mongocrypt_ctx_next_kms_ctx(*self.ctx.inner.borrow()) };
         if inner.is_null() {
             return None;
         }
@@ -605,7 +583,7 @@ impl<'ctx> Drop for KmsScope<'ctx> {
     fn drop(&mut self) {
         unsafe {
             // If this errors, it will show up in the next call to `ctx.status()` (or any other ctx call).
-            sys::mongocrypt_ctx_kms_done(self.ctx.inner);
+            sys::mongocrypt_ctx_kms_done(*self.ctx.inner.borrow());
         }
     }
 }

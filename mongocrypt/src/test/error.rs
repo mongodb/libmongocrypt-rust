@@ -10,7 +10,7 @@ fn status_parse() {
     let message = CStr::from_bytes_with_nul(b"hello mongocryptd\0").unwrap();
     unsafe {
         sys::mongocrypt_status_set(
-            status.native(),
+            *status.native(),
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
             42,
             message.as_ptr(),

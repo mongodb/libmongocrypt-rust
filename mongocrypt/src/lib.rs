@@ -1,4 +1,4 @@
-use std::{ffi::CStr, path::Path, ptr};
+use std::{ffi::CStr, path::Path, ptr, borrow::Borrow};
 
 use binary::BinaryRef;
 use bson::Document;
@@ -17,6 +17,7 @@ mod test;
 
 use error::{HasStatus, Result};
 pub use hooks::*;
+use native::OwnedPtr;
 
 /// Returns the version string for libmongocrypt.
 pub fn version() -> &'static str {
@@ -26,13 +27,13 @@ pub fn version() -> &'static str {
 }
 
 pub struct CryptBuilder {
-    inner: *mut sys::mongocrypt_t,
+    inner: OwnedPtr<sys::mongocrypt_t>,
     cleanup: Vec<Box<dyn std::any::Any>>,
 }
 
 impl HasStatus for CryptBuilder {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
-        sys::mongocrypt_status(self.inner, status);
+        sys::mongocrypt_status(*self.inner.borrow(), status);
     }
 }
 
@@ -40,7 +41,7 @@ impl CryptBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            inner: unsafe { sys::mongocrypt_new() },
+            inner: OwnedPtr::new(unsafe { sys::mongocrypt_new() }, sys::mongocrypt_destroy),
             cleanup: vec![],
         }
     }
@@ -60,7 +61,7 @@ impl CryptBuilder {
         let (secret_bytes, secret_len) = str_bytes_len(aws_secret_access_key)?;
         unsafe {
             if !sys::mongocrypt_setopt_kms_provider_aws(
-                self.inner,
+                *self.inner.borrow(),
                 key_bytes,
                 key_len,
                 secret_bytes,
@@ -80,7 +81,7 @@ impl CryptBuilder {
     pub fn kms_provider_local(self, key: &[u8]) -> Result<Self> {
         let bin = BinaryRef::new(key);
         unsafe {
-            if !sys::mongocrypt_setopt_kms_provider_local(self.inner, *bin.native()) {
+            if !sys::mongocrypt_setopt_kms_provider_local(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -95,7 +96,7 @@ impl CryptBuilder {
     pub fn kms_providers(self, kms_providers: &Document) -> Result<Self> {
         let binary = doc_binary(kms_providers)?;
         unsafe {
-            if !sys::mongocrypt_setopt_kms_providers(self.inner, *binary.native()) {
+            if !sys::mongocrypt_setopt_kms_providers(*self.inner.borrow(), *binary.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -109,7 +110,7 @@ impl CryptBuilder {
     pub fn schema_map(self, schema_map: &Document) -> Result<Self> {
         let binary = doc_binary(schema_map)?;
         unsafe {
-            if !sys::mongocrypt_setopt_schema_map(self.inner, *binary.native()) {
+            if !sys::mongocrypt_setopt_schema_map(*self.inner.borrow(), *binary.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -124,7 +125,7 @@ impl CryptBuilder {
     pub fn encrypted_field_config_map(self, efc_map: &Document) -> Result<Self> {
         let binary = doc_binary(efc_map)?;
         unsafe {
-            if !sys::mongocrypt_setopt_encrypted_field_config_map(self.inner, *binary.native()) {
+            if !sys::mongocrypt_setopt_encrypted_field_config_map(*self.inner.borrow(), *binary.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -159,7 +160,7 @@ impl CryptBuilder {
         tmp.push(0);
         unsafe {
             sys::mongocrypt_setopt_append_crypt_shared_lib_search_path(
-                self.inner,
+                *self.inner.borrow(),
                 tmp.as_ptr() as *const i8,
             );
         }
@@ -188,7 +189,7 @@ impl CryptBuilder {
         tmp.push(0);
         unsafe {
             sys::mongocrypt_setopt_set_crypt_shared_lib_path_override(
-                self.inner,
+                *self.inner.borrow(),
                 tmp.as_ptr() as *const i8,
             );
         }
@@ -207,7 +208,7 @@ impl CryptBuilder {
     /// mongocrypt_setopt_kms_providers.
     pub fn use_need_kms_credentials_state(self) -> Self {
         unsafe {
-            sys::mongocrypt_setopt_use_need_kms_credentials_state(self.inner);
+            sys::mongocrypt_setopt_use_need_kms_credentials_state(*self.inner.borrow());
         }
         self
     }
@@ -219,32 +220,20 @@ impl CryptBuilder {
     /// * A `Ctx` will never enter the `State::NeedMarkings` state.
     pub fn bypass_query_analysis(self) -> Self {
         unsafe {
-            sys::mongocrypt_setopt_bypass_query_analysis(self.inner);
+            sys::mongocrypt_setopt_bypass_query_analysis(*self.inner.borrow());
         }
         self
     }
 
     pub fn build(mut self) -> Result<Crypt> {
-        let ok = unsafe { sys::mongocrypt_init(self.inner) };
+        let ok = unsafe { sys::mongocrypt_init(*self.inner.borrow()) };
         if !ok {
             return Err(self.status().as_error());
         }
-        let out = Crypt {
+        Ok(Crypt {
             inner: self.inner,
             _cleanup: std::mem::take(&mut self.cleanup),
-        };
-        self.inner = ptr::null_mut();
-        Ok(out)
-    }
-}
-
-impl Drop for CryptBuilder {
-    fn drop(&mut self) {
-        if !self.inner.is_null() {
-            unsafe {
-                sys::mongocrypt_destroy(self.inner);
-            }
-        }
+        })
     }
 }
 
@@ -255,22 +244,12 @@ impl Drop for CryptBuilder {
 ///
 /// Multiple `Crypt` handles may be created.
 pub struct Crypt {
-    inner: *mut sys::mongocrypt_t,
+    inner: OwnedPtr<sys::mongocrypt_t>,
     _cleanup: Vec<Box<dyn std::any::Any>>,
 }
 
 unsafe impl Send for Crypt {}
 unsafe impl Sync for Crypt {}
-
-impl Drop for Crypt {
-    fn drop(&mut self) {
-        if !self.inner.is_null() {
-            unsafe {
-                sys::mongocrypt_destroy(self.inner);
-            }
-        }
-    }
-}
 
 impl Crypt {
     pub fn builder() -> CryptBuilder {
@@ -283,7 +262,7 @@ impl Crypt {
     /// For a numeric value that can be compared against, use `shared_lib_version`.
     pub fn shared_lib_version_string(&self) -> Option<String> {
         let s_ptr =
-            unsafe { sys::mongocrypt_crypt_shared_lib_version_string(self.inner, ptr::null_mut()) };
+            unsafe { sys::mongocrypt_crypt_shared_lib_version_string(*self.inner.borrow_const(), ptr::null_mut()) };
         if s_ptr.is_null() {
             return None;
         }
@@ -303,7 +282,7 @@ impl Crypt {
     ///
     /// For example, version 6.2.1 would be encoded as: 0x0006'0002'0001'0000
     pub fn shared_lib_version(&self) -> Option<u64> {
-        let out = unsafe { sys::mongocrypt_crypt_shared_lib_version(self.inner) };
+        let out = unsafe { sys::mongocrypt_crypt_shared_lib_version(*self.inner.borrow_const()) };
         if out == 0 {
             return None;
         }
@@ -311,6 +290,6 @@ impl Crypt {
     }
 
     pub fn ctx_builder(&self) -> CtxBuilder {
-        CtxBuilder::new(unsafe { sys::mongocrypt_ctx_new(self.inner) })
+        CtxBuilder::new(unsafe { sys::mongocrypt_ctx_new(*self.inner.borrow()) })
     }
 }

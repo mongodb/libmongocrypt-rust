@@ -1,7 +1,7 @@
 use std::{
     ffi::CStr,
     fmt::{Debug, Display},
-    ptr,
+    ptr, borrow::Borrow,
 };
 
 use mongocrypt_sys as sys;
@@ -82,27 +82,25 @@ macro_rules! overflow {
 }
 pub(crate) use overflow;
 
-use crate::convert::str_bytes_len;
+use crate::{convert::str_bytes_len, native::OwnedPtr};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) struct Status {
-    inner: *mut sys::mongocrypt_status_t,
+    inner: OwnedPtr<sys::mongocrypt_status_t>,
 }
 
 impl Status {
     pub(crate) fn new() -> Self {
-        Self {
-            inner: unsafe { sys::mongocrypt_status_new() },
-        }
+        Self::from_native(unsafe { sys::mongocrypt_status_new() })
     }
 
     pub(crate) fn from_native(inner: *mut sys::mongocrypt_status_t) -> Self {
-        Self { inner }
+        Self { inner: OwnedPtr::new(inner, sys::mongocrypt_status_destroy) }
     }
 
-    pub(crate) fn native(&self) -> *mut sys::mongocrypt_status_t {
-        self.inner
+    pub(crate) fn native(&self) -> &*mut sys::mongocrypt_status_t {
+        self.inner.borrow()
     }
 
     pub(crate) fn set(&mut self, err: &Error) -> Result<()> {
@@ -134,13 +132,13 @@ impl Status {
             None => (ptr::null(), 0),
         };
         unsafe {
-            sys::mongocrypt_status_set(self.inner, typ, err.code, message_ptr, message_len);
+            sys::mongocrypt_status_set(*self.native(), typ, err.code, message_ptr, message_len);
         }
         Ok(())
     }
 
     pub(crate) fn as_result(&self) -> Result<()> {
-        let typ = unsafe { sys::mongocrypt_status_type(self.inner) };
+        let typ = unsafe { sys::mongocrypt_status_type(*self.native()) };
         let kind = match typ {
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_OK => return Ok(()),
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT => ErrorKind::Client,
@@ -148,8 +146,8 @@ impl Status {
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE => ErrorKind::CsFle,
             _ => return Err(internal!("unhandled status type {}", typ)),
         };
-        let code = unsafe { sys::mongocrypt_status_code(self.inner) };
-        let message_ptr = unsafe { sys::mongocrypt_status_message(self.inner, ptr::null_mut()) };
+        let code = unsafe { sys::mongocrypt_status_code(*self.native()) };
+        let message_ptr = unsafe { sys::mongocrypt_status_message(*self.native(), ptr::null_mut()) };
         let message = if message_ptr.is_null() {
             None
         } else {
@@ -174,21 +172,13 @@ impl Status {
     }
 }
 
-impl Drop for Status {
-    fn drop(&mut self) {
-        unsafe {
-            sys::mongocrypt_status_destroy(self.inner);
-        }
-    }
-}
-
 pub(crate) trait HasStatus {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t);
 
     fn status(&self) -> Status {
         let out = Status::new();
         unsafe {
-            self.native_status(out.native());
+            self.native_status(*out.native());
         }
         out
     }

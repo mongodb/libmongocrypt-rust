@@ -22,8 +22,11 @@ impl<T> OwnedPtr<T> {
         Self { inner, destroy }
     }
 
-    pub(crate) fn take(mut self) -> *mut T {
-        std::mem::replace(&mut self.inner, std::ptr::null_mut())
+    pub(crate) fn borrow_const(&self) -> &*const T {
+        let borrow: &*mut T = self.borrow();
+        let borrow_ptr = borrow as *const *mut T;
+        let borrow_const_ptr = borrow_ptr as *const *const T;
+        unsafe { &*borrow_const_ptr }
     }
 }
 
