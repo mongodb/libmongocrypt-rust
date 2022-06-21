@@ -11,6 +11,7 @@ mod convert;
 pub mod ctx;
 pub mod error;
 mod hooks;
+mod native;
 #[cfg(test)]
 mod test;
 
@@ -79,7 +80,7 @@ impl CryptBuilder {
     pub fn kms_provider_local(self, key: &[u8]) -> Result<Self> {
         let bin = BinaryRef::new(key);
         unsafe {
-            if !sys::mongocrypt_setopt_kms_provider_local(self.inner, bin.native()) {
+            if !sys::mongocrypt_setopt_kms_provider_local(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -94,7 +95,7 @@ impl CryptBuilder {
     pub fn kms_providers(self, kms_providers: &Document) -> Result<Self> {
         let binary = doc_binary(kms_providers)?;
         unsafe {
-            if !sys::mongocrypt_setopt_kms_providers(self.inner, binary.native()) {
+            if !sys::mongocrypt_setopt_kms_providers(self.inner, *binary.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -108,7 +109,7 @@ impl CryptBuilder {
     pub fn schema_map(self, schema_map: &Document) -> Result<Self> {
         let binary = doc_binary(schema_map)?;
         unsafe {
-            if !sys::mongocrypt_setopt_schema_map(self.inner, binary.native()) {
+            if !sys::mongocrypt_setopt_schema_map(self.inner, *binary.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -123,7 +124,7 @@ impl CryptBuilder {
     pub fn encrypted_field_config_map(self, efc_map: &Document) -> Result<Self> {
         let binary = doc_binary(efc_map)?;
         unsafe {
-            if !sys::mongocrypt_setopt_encrypted_field_config_map(self.inner, binary.native()) {
+            if !sys::mongocrypt_setopt_encrypted_field_config_map(self.inner, *binary.native()) {
                 return Err(self.status().as_error());
             }
         }

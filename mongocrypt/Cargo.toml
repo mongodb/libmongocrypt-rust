@@ -12,6 +12,10 @@ repository = "https://github.com/mongodb/libmongocrypt-rust"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+[features]
+compile_fail = []
+foobar = []
+
 [dependencies]
 mongocrypt-sys = { path = "../mongocrypt-sys" }
 bson = "2.3.0"

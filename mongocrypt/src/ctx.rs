@@ -44,7 +44,7 @@ impl CtxBuilder {
     pub fn key_id(self, key_id: &[u8]) -> Result<Self> {
         let bin = BinaryRef::new(key_id);
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_key_id(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_setopt_key_id(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -62,7 +62,7 @@ impl CtxBuilder {
     pub fn key_alt_name(self, key_alt_name: &str) -> Result<Self> {
         let bin = doc_binary(&doc! { "keyAltName": key_alt_name })?;
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_key_alt_name(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_setopt_key_alt_name(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -79,7 +79,7 @@ impl CtxBuilder {
         };
         let bin = doc_binary(&doc! { "keyMaterial": bson_bin })?;
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_key_material(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_setopt_key_material(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -196,7 +196,7 @@ impl CtxBuilder {
     pub fn key_encryption_key(self, key_encryption_key: &Document) -> Result<Self> {
         let bin = doc_binary(key_encryption_key)?;
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_key_encryption_key(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_setopt_key_encryption_key(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
             Ok(self)
@@ -234,7 +234,7 @@ impl CtxBuilder {
         let bytes = key_id.bytes();
         let bin = BinaryRef::new(&bytes);
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_index_key_id(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_setopt_index_key_id(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -275,7 +275,7 @@ impl CtxBuilder {
         let (db_bytes, db_len) = str_bytes_len(db)?;
         let cmd_bin = BinaryRef::new(cmd.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_encrypt_init(self.inner, db_bytes, db_len, cmd_bin.native()) {
+            if !sys::mongocrypt_ctx_encrypt_init(self.inner, db_bytes, db_len, *cmd_bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -295,7 +295,7 @@ impl CtxBuilder {
     pub fn build_explicit_encrypt(self, value: &bson::Bson) -> Result<Ctx> {
         let bin = doc_binary(&doc! { "v": value })?;
         unsafe {
-            if !sys::mongocrypt_ctx_explicit_encrypt_init(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_explicit_encrypt_init(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -308,7 +308,7 @@ impl CtxBuilder {
     pub fn build_decrypt(self, doc: &RawDocument) -> Result<Ctx> {
         let bin = BinaryRef::new(doc.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_decrypt_init(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_decrypt_init(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -325,7 +325,7 @@ impl CtxBuilder {
         };
         let bin = doc_binary(&doc! { "v": bson_bin })?;
         unsafe {
-            if !sys::mongocrypt_ctx_explicit_decrypt_init(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_explicit_decrypt_init(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -339,7 +339,7 @@ impl CtxBuilder {
     pub fn build_rewrap_many_datakey(self, filter: &RawDocument) -> Result<Ctx> {
         let bin = BinaryRef::new(filter.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_rewrap_many_datakey_init(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_rewrap_many_datakey_init(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -441,7 +441,7 @@ impl Ctx {
         // one.
         let op_bytes = unsafe {
             let bin = Binary::new();
-            if !sys::mongocrypt_ctx_mongo_op(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_mongo_op(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
             bin.bytes()?
@@ -463,7 +463,7 @@ impl Ctx {
     pub fn mongo_feed(&mut self, reply: &RawDocument) -> Result<()> {
         let bin = BinaryRef::new(reply.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_mongo_feed(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_mongo_feed(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -492,7 +492,7 @@ impl Ctx {
     pub fn provide_kms_providers(&mut self, kms_providers_definition: &RawDocument) -> Result<()> {
         let bin = BinaryRef::new(kms_providers_definition.as_bytes());
         unsafe {
-            if !sys::mongocrypt_ctx_provide_kms_providers(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_provide_kms_providers(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -526,7 +526,7 @@ impl Ctx {
     pub fn finalize(&mut self) -> Result<&RawDocument> {
         let bytes = unsafe {
             let bin = Binary::new();
-            if !sys::mongocrypt_ctx_finalize(self.inner, bin.native()) {
+            if !sys::mongocrypt_ctx_finalize(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
             bin.bytes()?
@@ -632,7 +632,7 @@ impl<'scope> KmsCtx<'scope> {
         // which can't happen without ending 'scope.
         unsafe {
             let bin = Binary::new();
-            if !sys::mongocrypt_kms_ctx_message(self.inner, bin.native()) {
+            if !sys::mongocrypt_kms_ctx_message(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
             bin.bytes()
@@ -667,7 +667,7 @@ impl<'scope> KmsCtx<'scope> {
     pub fn feed(&mut self, bytes: &[u8]) -> Result<()> {
         let bin = BinaryRef::new(bytes);
         unsafe {
-            if !sys::mongocrypt_kms_ctx_feed(self.inner, bin.native()) {
+            if !sys::mongocrypt_kms_ctx_feed(self.inner, *bin.native()) {
                 return Err(self.status().as_error());
             }
         }

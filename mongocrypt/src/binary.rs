@@ -1,33 +1,40 @@
+use std::borrow::Borrow;
+
 use mongocrypt_sys as sys;
 
 use crate::convert::binary_bytes;
 use crate::error::Result;
+use crate::native::OwnedPtr;
 
 pub(crate) struct Binary {
-    inner: *mut sys::mongocrypt_binary_t,
-}
-
-impl Drop for Binary {
-    fn drop(&mut self) {
-        unsafe {
-            sys::mongocrypt_binary_destroy(self.inner);
-        }
-    }
+    inner: OwnedPtr<sys::mongocrypt_binary_t>,
 }
 
 impl Binary {
     pub(crate) fn new() -> Self {
         Self {
-            inner: unsafe { sys::mongocrypt_binary_new() },
+            inner: OwnedPtr::new(
+                unsafe { sys::mongocrypt_binary_new() },
+                sys::mongocrypt_binary_destroy,
+            )
         }
     }
 
-    pub(crate) fn native(&self) -> *mut sys::mongocrypt_binary_t {
-        self.inner
+    fn new_from(inner: *mut sys::mongocrypt_binary_t) -> Self {
+        Self {
+            inner: OwnedPtr::new(
+                inner,
+                sys::mongocrypt_binary_destroy,
+            )
+        }
+    }
+
+    pub(crate) fn native(&self) -> &*mut sys::mongocrypt_binary_t {
+        self.inner.borrow()
     }
 
     pub(crate) unsafe fn bytes<'a>(&self) -> Result<&'a [u8]> {
-        binary_bytes(self.inner)
+        binary_bytes(*self.inner.borrow())
     }
 }
 
@@ -44,12 +51,12 @@ impl BinaryBuf {
         };
         Self {
             _bytes: bytes,
-            inner: Binary { inner: native },
+            inner: Binary::new_from(native),
         }
     }
 
-    pub(crate) fn native(&self) -> *mut sys::mongocrypt_binary_t {
-        self.inner.inner
+    pub(crate) fn native(&self) -> &*mut sys::mongocrypt_binary_t {
+        self.inner.native()
     }
 }
 
@@ -64,11 +71,11 @@ impl<'a> BinaryRef<'a> {
         let native = unsafe { sys::mongocrypt_binary_new_from_data(data_ptr, data.len() as u32) };
         Self {
             _data: data,
-            inner: Binary { inner: native },
+            inner: Binary::new_from(native),
         }
     }
 
-    pub(crate) fn native(&self) -> *mut sys::mongocrypt_binary_t {
-        self.inner.inner
+    pub(crate) fn native(&self) -> &*mut sys::mongocrypt_binary_t {
+        self.inner.native()
     }
 }
