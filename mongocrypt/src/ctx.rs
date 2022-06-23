@@ -676,12 +676,26 @@ impl<'scope> KmsCtx<'scope> {
     /// This is used to conditionally configure TLS connections based on the KMS
     /// request. It is useful for KMIP, which authenticates with a client
     /// certificate.
-    ///
-    /// Returns one of the static strings: "aws", "azure", "gcp", or "kmip".
-    pub fn get_kms_provider(&self) -> Result<&'static str> {
-        unsafe {
+    pub fn get_kms_provider(&self) -> Result<KmsProvider> {
+        let name = unsafe {
             let ptr = sys::mongocrypt_kms_ctx_get_kms_provider(self.inner, ptr::null_mut());
-            Ok(CStr::from_ptr(ptr).to_str()?)
-        }
+            CStr::from_ptr(ptr).to_str()?
+        };
+        Ok(match name {
+            "aws" => KmsProvider::Aws,
+            "azure" => KmsProvider::Azure,
+            "gcp" => KmsProvider::Gcp,
+            "kmip" => KmsProvider::Kmip,
+            _ => KmsProvider::Other(name),
+        })
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum KmsProvider {
+    Aws,
+    Azure,
+    Gcp,
+    Kmip,
+    Other(&'static str),
 }
