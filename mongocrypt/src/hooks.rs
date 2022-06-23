@@ -27,7 +27,7 @@ impl CryptBuilder {
             _message_len: u32,
             ctx: *mut ::std::os::raw::c_void,
         ) {
-            let level = LogLevel::from_native(c_level).unwrap();
+            let level = LogLevel::from_native(c_level);
             let cs_message = unsafe { CStr::from_ptr(c_message) };
             let message = cs_message.to_string_lossy();
             // Safety: this pointer originates below with the same type and with a lifetime of that of the containing `MongoCrypt`.
@@ -279,17 +279,18 @@ pub enum LogLevel {
     Warning,
     Info,
     Trace,
+    Other(sys::mongocrypt_log_level_t),
 }
 
 impl LogLevel {
-    fn from_native(level: sys::mongocrypt_log_level_t) -> error::Result<Self> {
+    fn from_native(level: sys::mongocrypt_log_level_t) -> Self {
         match level {
-            sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_FATAL => Ok(Self::Fatal),
-            sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_ERROR => Ok(Self::Error),
-            sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_WARNING => Ok(Self::Warning),
-            sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_INFO => Ok(Self::Info),
-            sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_TRACE => Ok(Self::Trace),
-            _ => Err(error::internal!("unhandled log level {}", level)),
+            sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_FATAL => Self::Fatal,
+            sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_ERROR => Self::Error,
+            sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_WARNING => Self::Warning,
+            sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_INFO => Self::Info,
+            sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_TRACE => Self::Trace,
+            _ => LogLevel::Other(level),
         }
     }
 }

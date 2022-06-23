@@ -6,7 +6,7 @@ use mongocrypt_sys as sys;
 use crate::{
     binary::{Binary, BinaryRef},
     convert::{doc_binary, rawdoc, str_bytes_len},
-    error::{self, HasStatus, Result},
+    error::{HasStatus, Result},
     native::OwnedPtr,
 };
 
@@ -420,7 +420,7 @@ impl Ctx {
         if s == sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_ERROR {
             return Err(self.status().as_error());
         }
-        State::from_native(s)
+        Ok(State::from_native(s))
     }
 
     /// Get BSON necessary to run the mongo operation when in `State::NeedMongo*` states.
@@ -545,25 +545,26 @@ pub enum State {
     NeedKmsCredentials,
     Ready,
     Done,
+    Other(sys::mongocrypt_ctx_state_t),
 }
 
 impl State {
-    fn from_native(state: sys::mongocrypt_ctx_state_t) -> Result<Self> {
+    fn from_native(state: sys::mongocrypt_ctx_state_t) -> Self {
         match state {
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO => {
-                Ok(Self::NeedMongoCollinfo)
+                Self::NeedMongoCollinfo
             }
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_MARKINGS => {
-                Ok(Self::NeedMongoMarkings)
+                Self::NeedMongoMarkings
             }
-            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_KEYS => Ok(Self::NeedMongoKeys),
-            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS => Ok(Self::NeedKms),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_KEYS => Self::NeedMongoKeys,
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS => Self::NeedKms,
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS_CREDENTIALS => {
-                Ok(Self::NeedKmsCredentials)
+                Self::NeedKmsCredentials
             }
-            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_READY => Ok(Self::Ready),
-            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_DONE => Ok(Self::Done),
-            _ => Err(error::internal!("unexpected ctx state {}", state)),
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_READY => Self::Ready,
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_DONE => Self::Done,
+            other => Self::Other(other),
         }
     }
 }

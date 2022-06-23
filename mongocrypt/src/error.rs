@@ -39,6 +39,8 @@ pub enum ErrorKind {
     Encoding,
     Overflow,
     Internal,
+    // Forward compatibility
+    Other(sys::mongocrypt_status_type_t),
 }
 
 impl From<std::num::TryFromIntError> for Error {
@@ -154,7 +156,7 @@ impl Status {
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT => ErrorKind::Client,
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS => ErrorKind::Kms,
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE => ErrorKind::CsFle,
-            _ => return Err(internal!("unhandled status type {}", typ)),
+            _ => ErrorKind::Other(typ),
         };
         let code = unsafe { sys::mongocrypt_status_code(*self.native()) };
         let message_ptr =

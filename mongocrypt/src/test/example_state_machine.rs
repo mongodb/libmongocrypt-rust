@@ -105,7 +105,7 @@ fn run_state_machine(ctx: &mut Ctx) -> Result<RawDocumentBuf> {
                 result = output.to_owned();
             }
             State::Done => break,
-            State::NeedKmsCredentials => panic!("unexpected state"),
+            s => panic!("unexpected state: {:?}", s),
         }
     }
     Ok(result)
