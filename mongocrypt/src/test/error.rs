@@ -19,6 +19,6 @@ fn status_parse() {
     }
     let err = status.as_result().unwrap_err();
     assert_eq!(ErrorKind::Client, err.kind);
-    assert_eq!(42, err.code);
+    assert_eq!(Some(42), err.code);
     assert_eq!("hello mongocryptd", err.message.unwrap());
 }

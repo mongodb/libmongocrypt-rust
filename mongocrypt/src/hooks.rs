@@ -289,11 +289,7 @@ impl LogLevel {
             sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_WARNING => Ok(Self::Warning),
             sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_INFO => Ok(Self::Info),
             sys::mongocrypt_log_level_t_MONGOCRYPT_LOG_LEVEL_TRACE => Ok(Self::Trace),
-            _ => Err(error::Error {
-                kind: error::ErrorKind::Internal,
-                code: 0,
-                message: Some(format!("unhandled log level {}", level)),
-            }),
+            _ => Err(error::internal!("unhandled log level {}", level)),
         }
     }
 }

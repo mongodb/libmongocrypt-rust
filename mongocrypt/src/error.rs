@@ -10,13 +10,16 @@ use mongocrypt_sys as sys;
 #[derive(Debug)]
 pub struct Error {
     pub kind: ErrorKind,
-    pub code: u32,
+    pub code: Option<u32>,
     pub message: Option<String>,
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} ({})", self.kind, self.code)?;
+        write!(f, "{:?}", self.kind)?;
+        if let Some(code) = &self.code {
+            write!(f, " ({})", code)?;
+        }
         if let Some(s) = &self.message {
             write!(f, ": {}", s)?;
         }
@@ -54,7 +57,7 @@ macro_rules! internal {
     ($($arg:tt)*) => {{
         crate::error::Error {
             kind: crate::error::ErrorKind::Internal,
-            code: 0,
+            code: None,
             message: Some(format!($($arg)*)),
         }
     }}
@@ -65,7 +68,7 @@ macro_rules! encoding {
     ($($arg:tt)*) => {{
         crate::error::Error {
             kind: crate::error::ErrorKind::Encoding,
-            code: 0,
+            code: None,
             message: Some(format!($($arg)*)),
         }
     }}
@@ -76,7 +79,7 @@ macro_rules! overflow {
     ($($arg:tt)*) => {{
         crate::error::Error {
             kind: crate::error::ErrorKind::Overflow,
-            code: 0,
+            code: None,
             message: Some(format!($($arg)*)),
         }
     }}
@@ -134,8 +137,12 @@ impl Status {
             }
             None => (ptr::null(), 0),
         };
+        let code = match err.code {
+            Some(c) => c,
+            None => 0,
+        };
         unsafe {
-            sys::mongocrypt_status_set(*self.native(), typ, err.code, message_ptr, message_len);
+            sys::mongocrypt_status_set(*self.native(), typ, code, message_ptr, message_len);
         }
         Ok(())
     }
@@ -163,7 +170,7 @@ impl Status {
         };
         Err(Error {
             kind,
-            code,
+            code: Some(code),
             message,
         })
     }
