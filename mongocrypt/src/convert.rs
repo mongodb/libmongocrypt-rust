@@ -21,7 +21,7 @@ pub(crate) fn path_bytes(path: &std::path::Path) -> Result<Vec<u8>> {
 }
 
 #[cfg(not(unix))]
-pub(crate) fn path_bytes(path: &Path) -> Result<Vec<u8>> {
+pub(crate) fn path_bytes(path: &std::path::Path) -> Result<Vec<u8>> {
     // This is correct for Windows because libmongocrypt internally converts
     // from utf8 to utf16 on that platform.
     use error::Error;
