@@ -1,11 +1,11 @@
 use std::{borrow::Borrow, ffi::CStr, marker::PhantomData, ptr};
 
-use bson::{doc, Document, RawDocument};
+use bson::{Document, RawDocument, rawdoc};
 use mongocrypt_sys as sys;
 
 use crate::{
-    binary::{Binary, BinaryRef},
-    convert::{doc_binary, rawdoc, str_bytes_len},
+    binary::{Binary, BinaryRef, BinaryBuf},
+    convert::{doc_binary, rawdoc_view, str_bytes_len},
     error::{HasStatus, Result},
     native::OwnedPtr,
 };
@@ -21,9 +21,10 @@ impl HasStatus for CtxBuilder {
 }
 
 impl CtxBuilder {
-    pub(crate) fn new(inner: *mut sys::mongocrypt_ctx_t) -> Self {
+    /// Takes ownership of the given pointer, and will destroy it on drop.
+    pub(crate) fn steal(inner: *mut sys::mongocrypt_ctx_t) -> Self {
         Self {
-            inner: OwnedPtr::new(inner, sys::mongocrypt_ctx_destroy),
+            inner: OwnedPtr::steal(inner, sys::mongocrypt_ctx_destroy),
         }
     }
 
@@ -53,7 +54,7 @@ impl CtxBuilder {
     /// For creating data keys, call this function repeatedly to set
     /// multiple keyAltNames.   
     pub fn key_alt_name(self, key_alt_name: &str) -> Result<Self> {
-        let bin = doc_binary(&doc! { "keyAltName": key_alt_name })?;
+        let mut bin: BinaryBuf = rawdoc! { "keyAltName": key_alt_name }.into();
         unsafe {
             if !sys::mongocrypt_ctx_setopt_key_alt_name(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
@@ -70,7 +71,7 @@ impl CtxBuilder {
             subtype: bson::spec::BinarySubtype::Generic,
             bytes: key_material.to_vec(),
         };
-        let bin = doc_binary(&doc! { "keyMaterial": bson_bin })?;
+        let mut bin: BinaryBuf = rawdoc! { "keyMaterial": bson_bin }.into();
         unsafe {
             if !sys::mongocrypt_ctx_setopt_key_material(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
@@ -101,7 +102,8 @@ impl CtxBuilder {
     ///
     /// * `region` - The AWS region.
     /// * `cmk` - The Amazon Resource Name (ARN) of the customer master key (CMK).
-    pub fn masterkey_aws(self, region: &str, cmk: &str) -> Result<Self> {
+    #[cfg(test)]
+    pub(crate) fn masterkey_aws(self, region: &str, cmk: &str) -> Result<Self> {
         let (region_bytes, region_len) = str_bytes_len(region)?;
         let (cmk_bytes, cmk_len) = str_bytes_len(cmk)?;
         unsafe {
@@ -125,23 +127,12 @@ impl CtxBuilder {
     /// `KmsCtx::endpoint`.
     ///
     /// This has been superseded by the more flexible `key_encryption_key`.
-    pub fn masterkey_aws_endpoint(self, endpoint: &str) -> Result<Self> {
+    #[cfg(test)]
+    pub(crate) fn masterkey_aws_endpoint(self, endpoint: &str) -> Result<Self> {
         let (bytes, len) = str_bytes_len(endpoint)?;
         unsafe {
             if !sys::mongocrypt_ctx_setopt_masterkey_aws_endpoint(*self.inner.borrow(), bytes, len)
             {
-                return Err(self.status().as_error());
-            }
-        }
-        Ok(self)
-    }
-
-    /// Set the master key to "local" for creating a data key.
-    ///
-    /// This has been superseded by the more flexible `key_encryption_key`.
-    pub fn masterkey_local(self) -> Result<Self> {
-        unsafe {
-            if !sys::mongocrypt_ctx_setopt_masterkey_local(*self.inner.borrow()) {
                 return Err(self.status().as_error());
             }
         }
@@ -192,7 +183,7 @@ impl CtxBuilder {
     ///    endpoint: <string>
     /// }
     pub fn key_encryption_key(self, key_encryption_key: &Document) -> Result<Self> {
-        let bin = doc_binary(key_encryption_key)?;
+        let mut bin = doc_binary(key_encryption_key)?;
         unsafe {
             if !sys::mongocrypt_ctx_setopt_key_encryption_key(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
@@ -298,8 +289,8 @@ impl CtxBuilder {
     /// are set.
     ///
     /// * `value` - the plaintext BSON value.
-    pub fn build_explicit_encrypt(self, value: &bson::Bson) -> Result<Ctx> {
-        let bin = doc_binary(&doc! { "v": value })?;
+    pub fn build_explicit_encrypt(self, value: bson::RawBson) -> Result<Ctx> {
+        let mut bin: BinaryBuf = rawdoc! { "v": value }.into();
         unsafe {
             if !sys::mongocrypt_ctx_explicit_encrypt_init(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
@@ -329,7 +320,7 @@ impl CtxBuilder {
             subtype: bson::spec::BinarySubtype::Encrypted,
             bytes: msg.into(),
         };
-        let bin = doc_binary(&doc! { "v": bson_bin })?;
+        let mut bin: BinaryBuf = rawdoc! { "v": bson_bin }.into();
         unsafe {
             if !sys::mongocrypt_ctx_explicit_decrypt_init(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
@@ -442,7 +433,7 @@ impl Ctx {
             }
             bin.bytes()?
         };
-        rawdoc(op_bytes)
+        rawdoc_view(op_bytes)
     }
 
     /// Feed a BSON reply or result when this context is in
@@ -527,7 +518,7 @@ impl Ctx {
             }
             bin.bytes()?
         };
-        rawdoc(bytes)
+        rawdoc_view(bytes)
     }
 }
 

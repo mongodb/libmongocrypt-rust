@@ -5,7 +5,7 @@ use crate::binary::{BinaryBuf, BinaryRef};
 #[test]
 fn binary_owned_roundtrip() {
     let data = vec![1, 2, 3];
-    let bin = BinaryBuf::new(data.clone());
+    let mut bin = BinaryBuf::new(data.clone());
     let bin_slice = unsafe {
         let data = sys::mongocrypt_binary_data(*bin.native());
         let len = sys::mongocrypt_binary_len(*bin.native());

@@ -18,7 +18,8 @@ fn use_after_free() {
 }
 
 impl<T> OwnedPtr<T> {
-    pub(crate) fn new(inner: *mut T, destroy: Destroy<T>) -> Self {
+    /// Takes ownership of the given pointer, and will destroy it on drop.
+    pub(crate) fn steal(inner: *mut T, destroy: Destroy<T>) -> Self {
         Self { inner, destroy }
     }
 

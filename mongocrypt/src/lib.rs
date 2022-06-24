@@ -1,8 +1,9 @@
 use std::{borrow::Borrow, ffi::CStr, path::Path, ptr};
 
-use binary::BinaryRef;
 use bson::Document;
-use convert::{doc_binary, path_bytes, str_bytes_len};
+use convert::{doc_binary, path_bytes};
+#[cfg(test)]
+use convert::str_bytes_len;
 use ctx::CtxBuilder;
 use mongocrypt_sys as sys;
 
@@ -41,7 +42,7 @@ impl CryptBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            inner: OwnedPtr::new(unsafe { sys::mongocrypt_new() }, sys::mongocrypt_destroy),
+            inner: OwnedPtr::steal(unsafe { sys::mongocrypt_new() }, sys::mongocrypt_destroy),
             cleanup: vec![],
         }
     }
@@ -52,7 +53,8 @@ impl CryptBuilder {
     ///
     /// * `aws_access_key_id` - The AWS access key ID used to generate KMS messages.
     /// * `aws_secret_access_key` - The AWS secret access key used to generate KMS messages.
-    pub fn kms_provider_aws(
+    #[cfg(test)]
+    pub(crate) fn kms_provider_aws(
         self,
         aws_access_key_id: &str,
         aws_secret_access_key: &str,
@@ -73,28 +75,13 @@ impl CryptBuilder {
         Ok(self)
     }
 
-    /// Configure a local KMS provider.
-    ///
-    /// This has been superseded by the more flexible `kms_providers` method.
-    ///
-    /// * `key` - A 96 byte master key used to encrypt and decrypt key vault keys.
-    pub fn kms_provider_local(self, key: &[u8]) -> Result<Self> {
-        let bin = BinaryRef::new(key);
-        unsafe {
-            if !sys::mongocrypt_setopt_kms_provider_local(*self.inner.borrow(), *bin.native()) {
-                return Err(self.status().as_error());
-            }
-        }
-        Ok(self)
-    }
-
     /// Configure KMS providers with a BSON document.
     ///
     /// * `kms_providers` - A BSON document mapping the KMS provider names
     /// to credentials. Set a KMS provider value to an empty document to supply
     /// credentials on-demand with `Ctx::provide_kms_providers`.
     pub fn kms_providers(self, kms_providers: &Document) -> Result<Self> {
-        let binary = doc_binary(kms_providers)?;
+        let mut binary = doc_binary(kms_providers)?;
         unsafe {
             if !sys::mongocrypt_setopt_kms_providers(*self.inner.borrow(), *binary.native()) {
                 return Err(self.status().as_error());
@@ -108,7 +95,7 @@ impl CryptBuilder {
     /// * `schema_map` - A BSON document representing the schema map supplied by
     /// the user. The keys are collection namespaces and values are JSON schemas.
     pub fn schema_map(self, schema_map: &Document) -> Result<Self> {
-        let binary = doc_binary(schema_map)?;
+        let mut binary = doc_binary(schema_map)?;
         unsafe {
             if !sys::mongocrypt_setopt_schema_map(*self.inner.borrow(), *binary.native()) {
                 return Err(self.status().as_error());
@@ -123,7 +110,7 @@ impl CryptBuilder {
     /// supplied by the user. The keys are collection namespaces and values are
     /// EncryptedFieldConfigMap documents.
     pub fn encrypted_field_config_map(self, efc_map: &Document) -> Result<Self> {
-        let binary = doc_binary(efc_map)?;
+        let mut binary = doc_binary(efc_map)?;
         unsafe {
             if !sys::mongocrypt_setopt_encrypted_field_config_map(
                 *self.inner.borrow(),
@@ -297,6 +284,6 @@ impl Crypt {
     }
 
     pub fn ctx_builder(&self) -> CtxBuilder {
-        CtxBuilder::new(unsafe { sys::mongocrypt_ctx_new(*self.inner.borrow()) })
+        CtxBuilder::steal(unsafe { sys::mongocrypt_ctx_new(*self.inner.borrow()) })
     }
 }

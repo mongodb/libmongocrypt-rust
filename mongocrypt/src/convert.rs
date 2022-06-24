@@ -41,7 +41,7 @@ pub(crate) fn str_bytes_len(s: &str) -> Result<(*const i8, i32)> {
     ))
 }
 
-pub(crate) fn rawdoc(bytes: &[u8]) -> Result<&RawDocument> {
+pub(crate) fn rawdoc_view(bytes: &[u8]) -> Result<&RawDocument> {
     RawDocument::from_bytes(bytes).map_err(|e| error::internal!("document parse failure: {}", e))
 }
 

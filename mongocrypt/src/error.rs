@@ -103,7 +103,7 @@ impl Status {
 
     pub(crate) fn from_native(inner: *mut sys::mongocrypt_status_t) -> Self {
         Self {
-            inner: OwnedPtr::new(inner, sys::mongocrypt_status_destroy),
+            inner: OwnedPtr::steal(inner, sys::mongocrypt_status_destroy),
         }
     }
 

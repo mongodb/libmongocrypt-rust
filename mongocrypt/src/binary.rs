@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 
+use bson::RawDocumentBuf;
 use mongocrypt_sys as sys;
 
 use crate::convert::binary_bytes;
@@ -13,16 +14,17 @@ pub(crate) struct Binary {
 impl Binary {
     pub(crate) fn new() -> Self {
         Self {
-            inner: OwnedPtr::new(
+            inner: OwnedPtr::steal(
                 unsafe { sys::mongocrypt_binary_new() },
                 sys::mongocrypt_binary_destroy,
             ),
         }
     }
 
-    fn new_from(inner: *mut sys::mongocrypt_binary_t) -> Self {
+    /// Takes ownership of the given pointer, and will destroy it on drop.
+    fn steal(inner: *mut sys::mongocrypt_binary_t) -> Self {
         Self {
-            inner: OwnedPtr::new(inner, sys::mongocrypt_binary_destroy),
+            inner: OwnedPtr::steal(inner, sys::mongocrypt_binary_destroy),
         }
     }
 
@@ -36,24 +38,31 @@ impl Binary {
 }
 
 pub(crate) struct BinaryBuf {
-    _bytes: Vec<u8>,
+    _bytes: Box<[u8]>,
     inner: Binary,
 }
 
 impl BinaryBuf {
-    pub(crate) fn new(mut bytes: Vec<u8>) -> Self {
+    pub(crate) fn new(bytes: Vec<u8>) -> Self {
+        let mut bytes = bytes.into_boxed_slice();
         let native = unsafe {
             let ptr = bytes.as_mut_ptr() as *mut u8;
             sys::mongocrypt_binary_new_from_data(ptr, bytes.len() as u32)
         };
         Self {
             _bytes: bytes,
-            inner: Binary::new_from(native),
+            inner: Binary::steal(native),
         }
     }
 
-    pub(crate) fn native(&self) -> &*mut sys::mongocrypt_binary_t {
+    pub(crate) fn native(&mut self) -> &*mut sys::mongocrypt_binary_t {
         self.inner.native()
+    }
+}
+
+impl From<RawDocumentBuf> for BinaryBuf {
+    fn from(raw: RawDocumentBuf) -> Self {
+        BinaryBuf::new(raw.into_bytes())
     }
 }
 
@@ -68,7 +77,7 @@ impl<'a> BinaryRef<'a> {
         let native = unsafe { sys::mongocrypt_binary_new_from_data(data_ptr, data.len() as u32) };
         Self {
             _data: data,
-            inner: Binary::new_from(native),
+            inner: Binary::steal(native),
         }
     }
 

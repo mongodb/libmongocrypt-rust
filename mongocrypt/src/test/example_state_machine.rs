@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read, path::Path};
 
-use bson::{Bson, Document, RawDocument, RawDocumentBuf};
+use bson::{Bson, Document, RawDocument, RawDocumentBuf, RawBson};
 
 use crate::{
     ctx::{Algorithm, Ctx, State},
@@ -148,7 +148,7 @@ fn explicit_encryption_decryption() -> Result<()> {
         .ctx_builder()
         .key_id(key_bytes)?
         .algorithm(Algorithm::AeadAes256CbcHmacSha512Random)?
-        .build_explicit_encrypt(&Bson::String("hello".to_string()))?;
+        .build_explicit_encrypt(RawBson::String("hello".to_string()))?;
     let result = run_state_machine(&mut ctx)?;
 
     // Decryption
