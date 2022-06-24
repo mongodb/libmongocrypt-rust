@@ -467,11 +467,12 @@ impl Ctx {
         Ok(())
     }
 
+    /// Create a scope guard that provides handles to pending KMS requests.
     pub fn kms_scope(&mut self) -> KmsScope {
         KmsScope { ctx: self }
     }
 
-    /// all in response to the `State::NeedKmsCredentials` state
+    /// Call in response to the `State::NeedKmsCredentials` state
     /// to set per-context KMS provider settings. These follow the same format
     /// as `CryptBuilder::kms_providers`. If no keys are present in the
     /// BSON input, the KMS provider settings configured for the `Crypt`
@@ -667,12 +668,26 @@ impl<'scope> KmsCtx<'scope> {
     /// This is used to conditionally configure TLS connections based on the KMS
     /// request. It is useful for KMIP, which authenticates with a client
     /// certificate.
-    ///
-    /// Returns one of the static strings: "aws", "azure", "gcp", or "kmip".
-    pub fn get_kms_provider(&self) -> Result<&'static str> {
-        unsafe {
+    pub fn kms_provider(&self) -> Result<KmsProvider> {
+        let s = unsafe {
             let ptr = sys::mongocrypt_kms_ctx_get_kms_provider(self.inner, ptr::null_mut());
-            Ok(CStr::from_ptr(ptr).to_str()?)
-        }
+            CStr::from_ptr(ptr).to_str()?
+        };
+        Ok(match s {
+            "aws" => KmsProvider::Aws,
+            "azure" => KmsProvider::Azure,
+            "gcp" => KmsProvider::Gcp,
+            "kmip" => KmsProvider::Kmip,
+            _ => KmsProvider::Other(s),
+        })
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KmsProvider {
+    Aws,
+    Azure,
+    Gcp,
+    Kmip,
+    Other(&'static str),
 }

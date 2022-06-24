@@ -32,6 +32,7 @@ impl Binary {
         self.inner.borrow()
     }
 
+    /// This is unsafe because the lifetime of the returned slice is unbound and determined by the caller, not linked to the lifetime of `self`.
     pub(crate) unsafe fn bytes<'a>(&self) -> Result<&'a [u8]> {
         binary_bytes(*self.inner.borrow())
     }
