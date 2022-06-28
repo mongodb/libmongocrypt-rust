@@ -82,7 +82,8 @@ impl<'a> BinaryRef<'a> {
         }
     }
 
-    pub(crate) fn native(&self) -> &*mut sys::mongocrypt_binary_t {
+    /// This MUST only be used to pass as an input parameter to a libmongocrypt function that copies its input.
+    pub(crate) unsafe fn native(&self) -> &*mut sys::mongocrypt_binary_t {
         self.inner.native()
     }
 }
