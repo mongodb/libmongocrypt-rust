@@ -1,0 +1,99 @@
+# When a task that used to pass starts to fail
+# Go through all versions that may have been skipped to detect
+# when the task started failing
+stepback: true
+
+# Mark a failure as a system/bootstrap failure (purple box) rather then a task
+# failure by default.
+# Actual testing tasks are marked with `type: test`
+command_type: system
+
+# Protect ourself against rogue test case, or curl gone wild, that runs forever
+# 12 minutes is the longest we'll ever run
+exec_timeout_secs: 3600 # 12 minutes is the longest we'll ever run
+
+# What to do when evergreen hits the timeout (`post:` tasks are run automatically)
+timeout:
+- command: shell.exec
+  params:
+    script: |
+      ls -la
+
+pre_error_fails_task: true
+pre:
+- command: git.get_project
+  params:
+    directory: src
+- command: shell.exec
+  params:
+    working_dir: "src"
+    script: |
+      export PROJECT_DIRECTORY="$(pwd)"
+      export MONGOCRYPT_LIB_DIR="$PROJECT_DIRECTORY/native/${libmongocrypt_os}/lib"
+      export LD_LIBRARY_PATH="$MONGOCRYPT_LIB_DIR:$LD_LIBRARY_PATH"
+
+      cat <<EOT > expansion.yml
+      PREPARE_SHELL: |
+        set -o errexit
+        set -o xtrace
+        export PROJECT_DIRECTORY="$PROJECT_DIRECTORY"
+        export MONGOCRYPT_LIB_DIR="$MONGOCRYPT_LIB_DIR"
+        export LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
+      EOT
+      cat expansion.yml
+- command: expansions.update
+  params:
+    file: src/expansion.yml
+- command: shell.exec
+  params:
+    working_dir: "src"
+    script: |
+      ${PREPARE_SHELL}
+      .evergreen/install-dependencies.sh
+
+tasks:
+- name: "compile-only"
+  commands:
+  - command: shell.exec
+    type: test
+    params:
+      working_dir: "src"
+      script: |
+        ${PREPARE_SHELL}
+        .evergreen/compile-only.sh
+
+- name: "test"
+  commands:
+  - command: shell.exec
+    type: test
+    params:
+      working_dir: "src"
+      script: |
+        ${PREPARE_SHELL}
+        .evergreen/run-tests.sh
+
+buildvariants:
+- name: ubuntu
+  display_name: "Ubuntu 18.04"
+  run_on: ubuntu1804-test
+  expansions:
+    libmongocrypt_os: "ubuntu1804-64"
+  tasks:
+  - name: "compile-only"
+  - name: "test"
+- name: macos
+  display_name: "MacOS 10.14"
+  run_on: macos-1014
+  expansions:
+    libmongocrypt_os: "macos"
+  tasks:
+  - name: "compile-only"
+  - name: "test"
+- name: windows
+  display_name: "Windows (VS 2017)"
+  run_on: windows-64-vs2017-test
+  expansions:
+    libmongocrypt_os: "windows-test"
+  tasks:
+  - name: "compile-only"
+  - name: "test"
