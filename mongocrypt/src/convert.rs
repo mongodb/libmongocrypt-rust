@@ -26,11 +26,9 @@ pub(crate) fn path_bytes(path: &std::path::Path) -> Result<Vec<u8>> {
     // from utf8 to utf16 on that platform.
     use error::Error;
 
-    let s = path.to_str().ok_or_else(|| Error {
-        kind: ErrorKind::Encoding,
-        code: 0,
-        message: Some(format!("could not utf-8 encode path {:?}", path)),
-    })?;
+    let s = path
+        .to_str()
+        .ok_or_else(|| error::encoding!("could not utf-8 encode path {:?}", path))?;
     Ok(s.as_bytes().to_vec())
 }
 
