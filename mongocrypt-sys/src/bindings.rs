@@ -90,7 +90,8 @@ pub type mongocrypt_status_t = _mongocrypt_status_t;
 pub const mongocrypt_status_type_t_MONGOCRYPT_STATUS_OK: mongocrypt_status_type_t = 0;
 pub const mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT: mongocrypt_status_type_t = 1;
 pub const mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS: mongocrypt_status_type_t = 2;
-pub const mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE: mongocrypt_status_type_t = 3;
+pub const mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CRYPT_SHARED: mongocrypt_status_type_t =
+    3;
 #[doc = " Indicates the type of error."]
 pub type mongocrypt_status_type_t = ::std::os::raw::c_uint;
 extern "C" {
@@ -330,7 +331,7 @@ extern "C" {
 }
 extern "C" {
     #[doc = " @brief Append an additional search directory to the search path for loading"]
-    #[doc = " the CSFLE dynamic library."]
+    #[doc = " the crypt_shared dynamic library."]
     #[doc = ""]
     #[doc = " @param[in] crypt The @ref mongocrypt_t object to update"]
     #[doc = " @param[in] path A null-terminated sequence of bytes for the search path. On"]
@@ -339,11 +340,11 @@ extern "C" {
     #[doc = " the path is the literal string \"$ORIGIN\", that substring will be replaced"]
     #[doc = " with the directory path containing the executable libmongocrypt module. If"]
     #[doc = " the path string is literal \"$SYSTEM\", then libmongocrypt will defer to the"]
-    #[doc = " system's library resolution mechanism to find the CSFLE library."]
+    #[doc = " system's library resolution mechanism to find the crypt_shared library."]
     #[doc = ""]
-    #[doc = " @note If no CSFLE dynamic library is found in any of the directories"]
+    #[doc = " @note If no crypt_shared dynamic library is found in any of the directories"]
     #[doc = " specified by the search paths loaded here, @ref mongocrypt_init() will still"]
-    #[doc = " succeed and continue to operate without CSFLE."]
+    #[doc = " succeed and continue to operate without crypt_shared."]
     #[doc = ""]
     #[doc = " @note The search paths are searched in the order that they are appended. This"]
     #[doc = " allows one to provide a precedence in how the library will be discovered. For"]
@@ -361,25 +362,26 @@ extern "C" {
     );
 }
 extern "C" {
-    #[doc = " @brief Set a single override path for loading the CSFLE dynamic library."]
+    #[doc = " @brief Set a single override path for loading the crypt_shared dynamic"]
+    #[doc = " library."]
     #[doc = ""]
     #[doc = " @param[in] crypt The @ref mongocrypt_t object to update"]
-    #[doc = " @param[in] path A null-terminated sequence of bytes for a path to the CSFLE"]
-    #[doc = " dynamic library. On some filesystems, this may be arbitrary bytes. On other"]
-    #[doc = " filesystems, this may be required to be a valid UTF-8 code unit sequence. If"]
-    #[doc = " the leading element of the path is the literal string `$ORIGIN`, that"]
-    #[doc = " substring will be replaced with the directory path containing the executable"]
-    #[doc = " libmongocrypt module."]
+    #[doc = " @param[in] path A null-terminated sequence of bytes for a path to the"]
+    #[doc = " crypt_shared dynamic library. On some filesystems, this may be arbitrary"]
+    #[doc = " bytes. On other filesystems, this may be required to be a valid UTF-8 code"]
+    #[doc = " unit sequence. If the leading element of the path is the literal string"]
+    #[doc = " `$ORIGIN`, that substring will be replaced with the directory path containing"]
+    #[doc = " the executable libmongocrypt module."]
     #[doc = ""]
     #[doc = " @note This function will do no IO nor path validation. All validation will"]
     #[doc = " occur during the call to @ref mongocrypt_init."]
     #[doc = ""]
-    #[doc = " @note If a CSFLE library path override is specified here, then no paths given"]
-    #[doc = " to @ref mongocrypt_setopt_append_crypt_shared_lib_search_path will be"]
-    #[doc = " consulted when opening the CSFLE library."]
+    #[doc = " @note If a crypt_shared library path override is specified here, then no"]
+    #[doc = " paths given to @ref mongocrypt_setopt_append_crypt_shared_lib_search_path"]
+    #[doc = " will be consulted when opening the crypt_shared library."]
     #[doc = ""]
     #[doc = " @note If a path is provided via this API and @ref mongocrypt_init fails to"]
-    #[doc = " initialize a valid CSFLE library instance for the path specified, then"]
+    #[doc = " initialize a valid crypt_shared library instance for the path specified, then"]
     #[doc = " the initialization of mongocrypt_t will fail with an error."]
     pub fn mongocrypt_setopt_set_crypt_shared_lib_path_override(
         crypt: *mut mongocrypt_t,
@@ -432,18 +434,19 @@ extern "C" {
     pub fn mongocrypt_destroy(crypt: *mut mongocrypt_t);
 }
 extern "C" {
-    #[doc = " Obtain a nul-terminated version string of the loaded csfle dynamic library,"]
-    #[doc = " if available."]
+    #[doc = " Obtain a nul-terminated version string of the loaded crypt_shared dynamic"]
+    #[doc = " library, if available."]
     #[doc = ""]
-    #[doc = " If no csfle was successfully loaded, this function returns NULL."]
+    #[doc = " If no crypt_shared was successfully loaded, this function returns NULL."]
     #[doc = ""]
     #[doc = " @param[in] crypt The mongocrypt_t object after a successful call to"]
     #[doc = " mongocrypt_init."]
     #[doc = " @param[out] len An optional output parameter to which the length of the"]
-    #[doc = " returned string is written. If provided and no csfle library was loaded, zero"]
-    #[doc = " is written to *len."]
+    #[doc = " returned string is written. If provided and no crypt_shared library was"]
+    #[doc = " loaded, zero is written to *len."]
     #[doc = ""]
-    #[doc = " @return A nul-terminated string of the dynamically loaded csfle library."]
+    #[doc = " @return A nul-terminated string of the dynamically loaded crypt_shared"]
+    #[doc = " library."]
     #[doc = ""]
     #[doc = " @note For a numeric value that can be compared against, use"]
     #[doc = " @ref mongocrypt_crypt_shared_lib_version."]
@@ -453,14 +456,14 @@ extern "C" {
     ) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
-    #[doc = " @brief Obtain a 64-bit constant encoding the version of the loaded csfle"]
-    #[doc = " library, if available."]
+    #[doc = " @brief Obtain a 64-bit constant encoding the version of the loaded"]
+    #[doc = " crypt_shared library, if available."]
     #[doc = ""]
     #[doc = " @param[in] crypt The mongocrypt_t object after a successul call to"]
     #[doc = " mongocrypt_init."]
     #[doc = ""]
     #[doc = " @return A 64-bit encoded version number, with the version encoded as four"]
-    #[doc = " sixteen-bit integers, or zero if no csfle library was loaded."]
+    #[doc = " sixteen-bit integers, or zero if no crypt_shared library was loaded."]
     #[doc = ""]
     #[doc = " The version is encoded as four 16-bit numbers, from high to low:"]
     #[doc = ""]
@@ -755,14 +758,14 @@ extern "C" {
     #[doc = " - @ref mongocrypt_ctx_setopt_key_alt_name"]
     #[doc = " - @ref mongocrypt_ctx_setopt_algorithm"]
     #[doc = ""]
-    #[doc = " Associated options for FLE 2:"]
-    #[doc = " - @ref mongocrypt_ctx_setopt_index_type"]
+    #[doc = " Associated options for Queryable Encryption:"]
     #[doc = " - @ref mongocrypt_ctx_setopt_key_id"]
     #[doc = " - @ref mongocrypt_ctx_setopt_index_key_id"]
     #[doc = " - @ref mongocrypt_ctx_setopt_contention_factor"]
     #[doc = " - @ref mongocrypt_ctx_setopt_query_type"]
     #[doc = ""]
-    #[doc = " An error is returned if FLE 1 and FLE 2 incompatible options are set."]
+    #[doc = " An error is returned if FLE 1 and Queryable Encryption incompatible options"]
+    #[doc = " are set."]
     #[doc = ""]
     #[doc = " @param[in] ctx A @ref mongocrypt_ctx_t."]
     #[doc = " @param[in] msg A @ref mongocrypt_binary_t the plaintext BSON value. The"]
@@ -1067,9 +1070,11 @@ extern "C" {
     #[doc = " the key vault collection."]
     #[doc = ""]
     #[doc = " If @p ctx was initialized with @ref mongocrypt_ctx_rewrap_many_datakey_init,"]
-    #[doc = " then this BSON has the form { \"v\": [(BSON document), ...] } where each BSON"]
-    #[doc = " document in the array is a document containing a rewrapped datakey to be"]
-    #[doc = " bulk-updated into the key vault collection."]
+    #[doc = " then this BSON has the form:"]
+    #[doc = "   { \"v\": [{ \"_id\": ..., \"keyMaterial\": ..., \"masterKey\": ... }, ...] }"]
+    #[doc = " where each BSON document in the array contains the updated fields of a"]
+    #[doc = " rewrapped datakey to be bulk-updated into the key vault collection."]
+    #[doc = " Note: the updateDate field should be updated using the $currentDate operator."]
     #[doc = ""]
     #[doc = " @returns a bool indicating success. If false, an error status is set."]
     #[doc = " Retrieve it with @ref mongocrypt_ctx_status"]
@@ -1251,32 +1256,15 @@ extern "C" {
     #[doc = " @brief Opt-into skipping query analysis."]
     #[doc = ""]
     #[doc = " If opted in:"]
-    #[doc = " - The csfle shared library will not attempt to be loaded."]
+    #[doc = " - The crypt_shared library will not attempt to be loaded."]
     #[doc = " - A mongocrypt_ctx_t will never enter the MONGOCRYPT_CTX_NEED_MARKINGS state."]
     #[doc = ""]
     #[doc = " @param[in] crypt The @ref mongocrypt_t object to update"]
     pub fn mongocrypt_setopt_bypass_query_analysis(crypt: *mut mongocrypt_t);
 }
-pub const mongocrypt_index_type_t_MONGOCRYPT_INDEX_TYPE_NONE: mongocrypt_index_type_t = 1;
-pub const mongocrypt_index_type_t_MONGOCRYPT_INDEX_TYPE_EQUALITY: mongocrypt_index_type_t = 2;
-pub type mongocrypt_index_type_t = ::std::os::raw::c_uint;
-extern "C" {
-    #[doc = " Set the index type used for explicit encryption."]
-    #[doc = " The index type is only used for FLE 2 encryption."]
-    #[doc = ""]
-    #[doc = " @param[in] ctx The @ref mongocrypt_ctx_t object."]
-    #[doc = " @param[in] index_type"]
-    #[doc = " @pre @p ctx has not been initialized."]
-    #[doc = " @returns A boolean indicating success. If false, an error status is set."]
-    #[doc = " Retrieve it with @ref mongocrypt_ctx_status."]
-    pub fn mongocrypt_ctx_setopt_index_type(
-        ctx: *mut mongocrypt_ctx_t,
-        index_type: mongocrypt_index_type_t,
-    ) -> bool;
-}
 extern "C" {
     #[doc = " Set the contention factor used for explicit encryption."]
-    #[doc = " The contention factor is only used for indexed FLE 2 encryption."]
+    #[doc = " The contention factor is only used for indexed Queryable Encryption."]
     #[doc = ""]
     #[doc = " @param[in] ctx The @ref mongocrypt_ctx_t object."]
     #[doc = " @param[in] contention_factor"]
@@ -1289,7 +1277,7 @@ extern "C" {
     ) -> bool;
 }
 extern "C" {
-    #[doc = " Set the index key id to use for FLE 2 explicit encryption."]
+    #[doc = " Set the index key id to use for explicit Queryable Encryption."]
     #[doc = ""]
     #[doc = " If the index key id not set, the key id from @ref"]
     #[doc = " mongocrypt_ctx_setopt_key_id is used."]
@@ -1307,19 +1295,18 @@ extern "C" {
         key_id: *mut mongocrypt_binary_t,
     ) -> bool;
 }
-pub const mongocrypt_query_type_t_MONGOCRYPT_QUERY_TYPE_EQUALITY: mongocrypt_query_type_t = 1;
-pub type mongocrypt_query_type_t = ::std::os::raw::c_uint;
 extern "C" {
-    #[doc = " Set the query type to use for FLE 2 explicit encryption."]
-    #[doc = " The query type is only used for indexed FLE 2 encryption."]
+    #[doc = " Set the query type to use for explicit Queryable Encryption."]
     #[doc = ""]
     #[doc = " @param[in] ctx The @ref mongocrypt_ctx_t object."]
-    #[doc = " @param[in] query_type"]
+    #[doc = " @param[in] query_type The query type string"]
+    #[doc = " @param[in] len The length of query_type, or -1 for automatic"]
     #[doc = " @pre @p ctx has not been initialized."]
     #[doc = " @returns A boolean indicating success. If false, an error status is set."]
     #[doc = " Retrieve it with @ref mongocrypt_ctx_status"]
     pub fn mongocrypt_ctx_setopt_query_type(
         ctx: *mut mongocrypt_ctx_t,
-        query_type: mongocrypt_query_type_t,
+        query_type: *const ::std::os::raw::c_char,
+        len: ::std::os::raw::c_int,
     ) -> bool;
 }

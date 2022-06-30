@@ -2,7 +2,7 @@ use std::path::Path;
 
 use bson::doc;
 
-use crate::ctx::{Algorithm, IndexType, QueryType};
+use crate::ctx::Algorithm;
 use crate::error::Result;
 use crate::CryptBuilder;
 
@@ -68,10 +68,9 @@ fn ctx_setopts() -> Result<()> {
         .algorithm(Algorithm::AeadAes256CbcHmacSha512Deterministic)?
         .masterkey_aws("somewhere", "something")?
         .masterkey_aws_endpoint("example.com")?
-        .index_type(IndexType::Equality)?
         .contention_factor(10)?
         .index_key_id(&bson::Uuid::new())?
-        .query_type(QueryType::Equality)?;
+        .query_type("equality")?;
 
     Ok(())
 }

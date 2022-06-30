@@ -1,9 +1,9 @@
 use std::{borrow::Borrow, ffi::CStr, path::Path, ptr};
 
 use bson::Document;
-use convert::{doc_binary, path_bytes};
 #[cfg(test)]
 use convert::str_bytes_len;
+use convert::{doc_binary, path_bytes};
 use ctx::CtxBuilder;
 use mongocrypt_sys as sys;
 

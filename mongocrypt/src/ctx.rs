@@ -1,10 +1,10 @@
 use std::{borrow::Borrow, ffi::CStr, marker::PhantomData, ptr};
 
-use bson::{Document, RawDocument, rawdoc};
+use bson::{rawdoc, Document, RawDocument};
 use mongocrypt_sys as sys;
 
 use crate::{
-    binary::{Binary, BinaryRef, BinaryBuf},
+    binary::{Binary, BinaryBuf, BinaryRef},
     convert::{doc_binary, rawdoc_view, str_bytes_len},
     error::{HasStatus, Result},
     native::OwnedPtr,
@@ -192,18 +192,6 @@ impl CtxBuilder {
         }
     }
 
-    /// Set the index type used for explicit encryption.
-    /// The index type is only used for Queryable Encryption.
-    pub fn index_type(self, index_type: IndexType) -> Result<Self> {
-        unsafe {
-            if !sys::mongocrypt_ctx_setopt_index_type(*self.inner.borrow(), index_type.as_native())
-            {
-                return Err(self.status().as_error());
-            }
-        }
-        Ok(self)
-    }
-
     /// Set the contention factor used for explicit encryption.
     /// The contention factor is only used for indexed Queryable Encryption.
     pub fn contention_factor(self, contention_factor: i64) -> Result<Self> {
@@ -235,10 +223,10 @@ impl CtxBuilder {
     }
 
     /// Set the query type to use for explicit Queryable Encryption.
-    pub fn query_type(self, query_type: QueryType) -> Result<Self> {
+    pub fn query_type(self, query_type: &str) -> Result<Self> {
+        let (s, len) = str_bytes_len(query_type)?;
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_query_type(*self.inner.borrow(), query_type.as_native())
-            {
+            if !sys::mongocrypt_ctx_setopt_query_type(*self.inner.borrow(), s, len) {
                 return Err(self.status().as_error());
             }
         }
@@ -360,36 +348,6 @@ impl Algorithm {
             Self::AeadAes256CbcHmacSha512Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
         };
         unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-#[non_exhaustive]
-pub enum IndexType {
-    None,
-    Equality,
-}
-
-impl IndexType {
-    fn as_native(self) -> sys::mongocrypt_index_type_t {
-        match self {
-            IndexType::None => sys::mongocrypt_index_type_t_MONGOCRYPT_INDEX_TYPE_NONE,
-            IndexType::Equality => sys::mongocrypt_index_type_t_MONGOCRYPT_INDEX_TYPE_EQUALITY,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-#[non_exhaustive]
-pub enum QueryType {
-    Equality,
-}
-
-impl QueryType {
-    fn as_native(self) -> sys::mongocrypt_query_type_t {
-        match self {
-            QueryType::Equality => sys::mongocrypt_query_type_t_MONGOCRYPT_QUERY_TYPE_EQUALITY,
-        }
     }
 }
 
