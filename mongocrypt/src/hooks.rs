@@ -31,7 +31,6 @@ impl CryptBuilder {
             let cs_message = unsafe { CStr::from_ptr(c_message) };
             let message = cs_message.to_string_lossy();
             // Safety: this pointer originates below with the same type and with a lifetime of that of the containing `MongoCrypt`.
-            //let handler: &Box<LogCb> = unsafe { std::mem::transmute(ctx) };
             let handler = unsafe { &*(ctx as *const Box<LogCb>) };
             let _ = run_hook(AssertUnwindSafe(|| {
                 handler(level, &message);
