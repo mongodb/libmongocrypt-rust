@@ -4,5 +4,5 @@ set -o errexit
 
 source ./.evergreen/configure-rust.sh
 
-cd mongocrypt-sys
+cd $TARGET_DIR
 cargo test
