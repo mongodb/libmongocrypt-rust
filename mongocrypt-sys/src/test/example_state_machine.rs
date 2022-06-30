@@ -100,7 +100,7 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                 );
                 mongocrypt_binary_destroy(output);
                 let input =
-                    BinaryBuffer::read_json_as_bson("src/test/testdata/collection-info.json");
+                    BinaryBuffer::read_json_as_bson("../testdata/collection-info.json");
                 println!(
                     "\nmocking reply from file:\n{:?}",
                     doc_from_binary(input.binary)
@@ -117,7 +117,7 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                 );
                 mongocrypt_binary_destroy(output);
                 let input =
-                    BinaryBuffer::read_json_as_bson("src/test/testdata/mongocryptd-reply.json");
+                    BinaryBuffer::read_json_as_bson("../testdata/mongocryptd-reply.json");
                 println!(
                     "\nmocking reply from file:\n{:?}",
                     doc_from_binary(input.binary)
@@ -133,7 +133,7 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                     doc_from_binary(output)
                 );
                 mongocrypt_binary_destroy(output);
-                let input = BinaryBuffer::read_json_as_bson("src/test/testdata/key-document.json");
+                let input = BinaryBuffer::read_json_as_bson("../testdata/key-document.json");
                 println!(
                     "\nmocking reply from file:\n{:?}",
                     doc_from_binary(input.binary)
@@ -156,7 +156,7 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                         );
                     });
                     mongocrypt_binary_destroy(output);
-                    let input = BinaryBuffer::read_http("src/test/testdata/kms-decrypt-reply.txt");
+                    let input = BinaryBuffer::read_http("../testdata/kms-decrypt-reply.txt");
                     println!(
                         "mocking reply from file:\n{:?}",
                         str::from_utf8(&input.bytes).unwrap()
@@ -180,7 +180,9 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                 mongocrypt_ctx_status(ctx, status);
                 let message = CStr::from_ptr(mongocrypt_status_message(status, ptr::null_mut()))
                     .to_str()
-                    .unwrap();
+                    .unwrap()
+                    .to_string();
+                mongocrypt_status_destroy(status);
                 panic!("got error: {}", message);
             }
             state => panic!("unhandled state {:?}", state),
@@ -228,7 +230,7 @@ fn encryption_decryption() {
 
         // Encryption
         let ctx = mongocrypt_ctx_new(crypt);
-        let msg = BinaryBuffer::read_json_as_bson("src/test/testdata/cmd.json");
+        let msg = BinaryBuffer::read_json_as_bson("../testdata/cmd.json");
         mongocrypt_ctx_encrypt_init(ctx, cs(b"test\0"), -1, msg.binary);
         drop(msg);
         let result = run_state_machine(ctx);
@@ -255,7 +257,7 @@ fn explicit_encryption_decryption() {
 
         // Encryption
         let ctx = mongocrypt_ctx_new(crypt);
-        let mut key_doc = load_doc_from_json("src/test/testdata/key-document.json");
+        let mut key_doc = load_doc_from_json("../testdata/key-document.json");
         let key_bytes = match key_doc.get_mut("_id").unwrap() {
             Bson::Binary(bson::Binary { bytes, .. }) => bytes,
             _ => panic!("non-binary bson"),
