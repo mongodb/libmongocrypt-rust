@@ -99,6 +99,16 @@ tasks:
     vars:
       target_dir: mongocrypt
 
+- name: "valgrind"
+  commands:
+  - command: shell.exec
+    type: test
+    params:
+      working_dir: "src"
+      script: |
+        ${PREPARE_SHELL}
+        .evergreen/run-valgrind.sh
+
 buildvariants:
 - name: ubuntu
   display_name: "Ubuntu 18.04"
@@ -108,6 +118,7 @@ buildvariants:
   tasks:
   - name: ".compile"
   - name: ".test"
+  - name: "valgrind"
 - name: macos
   display_name: "MacOS 10.14"
   run_on: macos-1014
