@@ -34,7 +34,7 @@ pub enum ErrorKind {
     // These correspond to errors from libmongocrypt
     Client,
     Kms,
-    CsFle,
+    CryptShared,
     // These are produced in this crate
     Encoding,
     Overflow,
@@ -118,7 +118,9 @@ impl Status {
         let typ = match err.kind {
             ErrorKind::Client => sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
             ErrorKind::Kms => sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS,
-            ErrorKind::CsFle => sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE,
+            ErrorKind::CryptShared => {
+                sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CRYPT_SHARED
+            }
             _ => {
                 inner_err = Error {
                     kind: ErrorKind::Client,
@@ -139,10 +141,7 @@ impl Status {
             }
             None => (ptr::null(), 0),
         };
-        let code = match err.code {
-            Some(c) => c,
-            None => 0,
-        };
+        let code = err.code.unwrap_or(0);
         unsafe {
             sys::mongocrypt_status_set(*self.native(), typ, code, message_ptr, message_len);
         }
@@ -155,7 +154,9 @@ impl Status {
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_OK => return Ok(()),
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT => ErrorKind::Client,
             sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_KMS => ErrorKind::Kms,
-            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CSFLE => ErrorKind::CsFle,
+            sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CRYPT_SHARED => {
+                ErrorKind::CryptShared
+            }
             _ => ErrorKind::Other(typ),
         };
         let code = unsafe { sys::mongocrypt_status_code(*self.native()) };

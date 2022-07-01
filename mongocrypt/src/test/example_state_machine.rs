@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read, path::Path};
 
-use bson::{Bson, Document, RawDocument, RawDocumentBuf, RawBson};
+use bson::{Bson, Document, RawBson, RawDocument, RawDocumentBuf};
 
 use crate::{
     ctx::{Algorithm, Ctx, State},
