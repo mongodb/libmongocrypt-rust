@@ -51,26 +51,53 @@ pre:
       ${PREPARE_SHELL}
       .evergreen/install-dependencies.sh
 
-tasks:
-- name: "compile-only"
-  commands:
+functions:
+  "compile only":
   - command: shell.exec
     type: test
     params:
       working_dir: "src"
       script: |
         ${PREPARE_SHELL}
-        .evergreen/compile-only.sh
+        TARGET_DIR=${target_dir} .evergreen/compile-only.sh
+  
+  "run tests":
+  - command: shell.exec
+    type: test
+    params:
+      working_dir: "src"
+      script: |
+        ${PREPARE_SHELL}
+        TARGET_DIR=${target_dir} .evergreen/run-tests.sh
+
+tasks:
+- name: "compile-only-sys"
+  tags: ["compile", "sys"]
+  commands:
+  - func: "compile only"
+    vars:
+      target_dir: mongocrypt-sys
+
+- name: "test-sys"
+  tags: ["test", "sys"]
+  commands:
+  - func: "run tests"
+    vars:
+      target_dir: mongocrypt-sys
+
+- name: "compile-only"
+  tags: ["compile"]
+  commands:
+  - func: "compile only"
+    vars:
+      target_dir: mongocrypt
 
 - name: "test"
+  tags: ["test"]
   commands:
-  - command: shell.exec
-    type: test
-    params:
-      working_dir: "src"
-      script: |
-        ${PREPARE_SHELL}
-        .evergreen/run-tests.sh
+  - func: "run tests"
+    vars:
+      target_dir: mongocrypt
 
 buildvariants:
 - name: ubuntu
@@ -79,21 +106,21 @@ buildvariants:
   expansions:
     libmongocrypt_os: "ubuntu1804-64"
   tasks:
-  - name: "compile-only"
-  - name: "test"
+  - name: ".compile"
+  - name: ".test"
 - name: macos
   display_name: "MacOS 10.14"
   run_on: macos-1014
   expansions:
     libmongocrypt_os: "macos"
   tasks:
-  - name: "compile-only"
-  - name: "test"
+  - name: ".sys"
+  - name: ".compile"
 - name: windows
   display_name: "Windows (VS 2017)"
   run_on: windows-64-vs2017-test
   expansions:
     libmongocrypt_os: "windows-test"
   tasks:
-  - name: "compile-only"
-  - name: "test"
+  - name: ".sys"
+  - name: ".compile"
