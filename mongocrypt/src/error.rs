@@ -7,7 +7,7 @@ use std::{
 
 use mongocrypt_sys as sys;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Error {
     pub kind: ErrorKind,
     pub code: Option<u32>,
