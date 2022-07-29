@@ -60,17 +60,19 @@ fn ctx_setopts() -> Result<()> {
         .kms_provider_aws("example", "example")?
         .build()?;
 
-    let builder = crypt.ctx_builder();
-    builder
-        .key_id(&[0; 16])?
-        .key_alt_name("test")?
-        .key_material(&[0; 96])?
-        .algorithm(Algorithm::AeadAes256CbcHmacSha512Deterministic)?
-        .masterkey_aws("somewhere", "something")?
-        .masterkey_aws_endpoint("example.com")?
-        .contention_factor(10)?
-        .index_key_id(&bson::Uuid::new())?
-        .query_type("equality")?;
+    let ctx = crypt.build_ctx(|builder| {
+        builder
+            .key_id(&[0; 16])?
+            .key_alt_name("test")?
+            .key_material(&[0; 96])?
+            .algorithm(Algorithm::AeadAes256CbcHmacSha512Deterministic)?
+            .masterkey_aws("somewhere", "something")?
+            .masterkey_aws_endpoint("example.com")?
+            .contention_factor(10)?
+            .index_key_id(&bson::Uuid::new())?
+            .query_type("equality")?
+            .build_noop()
+    })?;
 
     Ok(())
 }

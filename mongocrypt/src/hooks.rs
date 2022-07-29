@@ -47,7 +47,7 @@ impl CryptBuilder {
                 Some(log_shim),
                 handler_ptr,
             ) {
-                return Err(self.status().as_error());
+                return Err(self.error());
             }
         }
 
@@ -113,7 +113,7 @@ impl CryptBuilder {
                 Some(sha_256_shim),
                 &*hooks as *const CryptoHooks as *mut std::ffi::c_void,
             ) {
-                return Err(self.status().as_error());
+                return Err(self.error());
             }
         }
         self.cleanup.push(hooks);
@@ -190,7 +190,7 @@ impl CryptBuilder {
                 Some(aes_256_ctr_decrypt_shim),
                 &*hooks as *const Hooks as *mut std::ffi::c_void,
             ) {
-                return Err(self.status().as_error());
+                return Err(self.error());
             }
         }
         self.cleanup.push(hooks);
@@ -227,7 +227,7 @@ impl CryptBuilder {
                 Some(shim),
                 &*hook as *const CryptoFn as *mut std::ffi::c_void,
             ) {
-                return Err(self.status().as_error());
+                return Err(self.error());
             }
         }
         self.cleanup.push(hook);
@@ -262,7 +262,7 @@ impl CryptBuilder {
                 Some(shim),
                 &*hook as *const HmacFn as *mut std::ffi::c_void,
             ) {
-                return Err(self.status().as_error());
+                return Err(self.error());
             }
         }
         self.cleanup.push(hook);

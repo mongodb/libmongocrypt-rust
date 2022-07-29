@@ -189,11 +189,11 @@ impl Status {
 pub(crate) trait HasStatus {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t);
 
-    fn status(&self) -> Status {
+    fn error(&self) -> Error {
         let out = Status::new();
         unsafe {
             self.native_status(*out.native());
         }
-        out
+        out.as_error()
     }
 }

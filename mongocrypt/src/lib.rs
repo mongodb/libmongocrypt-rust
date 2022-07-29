@@ -4,7 +4,7 @@ use bson::Document;
 #[cfg(test)]
 use convert::str_bytes_len;
 use convert::{doc_binary, path_bytes};
-use ctx::{CtxBuilder, Ctx};
+use ctx::{CtxBuilder, Ctx, BuiltCtx};
 use mongocrypt_sys as sys;
 
 mod binary;
@@ -69,7 +69,7 @@ impl CryptBuilder {
                 secret_bytes,
                 secret_len,
             ) {
-                return Err(self.status().as_error());
+                return Err(self.error());
             }
         }
         Ok(self)
@@ -84,7 +84,7 @@ impl CryptBuilder {
         let mut binary = doc_binary(kms_providers)?;
         unsafe {
             if !sys::mongocrypt_setopt_kms_providers(*self.inner.borrow(), *binary.native()) {
-                return Err(self.status().as_error());
+                return Err(self.error());
             }
         }
         Ok(self)
@@ -98,7 +98,7 @@ impl CryptBuilder {
         let mut binary = doc_binary(schema_map)?;
         unsafe {
             if !sys::mongocrypt_setopt_schema_map(*self.inner.borrow(), *binary.native()) {
-                return Err(self.status().as_error());
+                return Err(self.error());
             }
         }
         Ok(self)
@@ -116,7 +116,7 @@ impl CryptBuilder {
                 *self.inner.borrow(),
                 *binary.native(),
             ) {
-                return Err(self.status().as_error());
+                return Err(self.error());
             }
         }
         Ok(self)
@@ -218,7 +218,7 @@ impl CryptBuilder {
     pub fn build(mut self) -> Result<Crypt> {
         let ok = unsafe { sys::mongocrypt_init(*self.inner.borrow()) };
         if !ok {
-            return Err(self.status().as_error());
+            return Err(self.error());
         }
         Ok(Crypt {
             inner: self.inner,
@@ -283,7 +283,7 @@ impl Crypt {
         Some(out)
     }
 
-    pub fn build_ctx(&self, f: impl FnOnce(CtxBuilder) -> Result<Ctx> + Send + 'static) -> Result<Ctx> {
+    pub fn build_ctx(&self, f: impl FnOnce(CtxBuilder) -> Result<BuiltCtx> + Send + 'static) -> Result<Ctx> {
         Ctx::build(&self, f)
     }
 }
