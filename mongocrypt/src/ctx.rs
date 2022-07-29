@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, ffi::{CStr, c_void}, marker::PhantomData, ptr, sync::{mpsc::{self, Receiver, Sender}}, thread::{self, JoinHandle}};
+use std::{borrow::Borrow, ffi::{CStr, c_void}, marker::PhantomData, ptr, sync::{mpsc::{self, Receiver, Sender}, Mutex}, thread::{self, JoinHandle}};
 
 use bson::{rawdoc, Document, RawDocument};
 use mongocrypt_sys as sys;
@@ -362,14 +362,13 @@ impl Algorithm {
 
 pub struct Ctx {
     handle: Option<JoinHandle<()>>,
-    send: Sender<CtxAction>,
-    // TODO: impl drop
+    send: Mutex<Sender<CtxAction>>,
 }
 
 impl Drop for Ctx {
     fn drop(&mut self) {
         let (send, recv) = oneshot();
-        if self.send.send(CtxAction::Done(send)).is_ok() {
+        if self.send.lock().unwrap().send(CtxAction::Done(send)).is_ok() {
             let _ = recv.recv();
         }
         if let Some(handle) = self.handle.take() {
@@ -387,7 +386,7 @@ impl Ctx {
         let handle = thread::spawn(move || {
             Self::worker(crypt_ptr, recv)
         });
-        let ctx = Ctx { handle: Some(handle), send };
+        let ctx = Ctx { handle: Some(handle), send: Mutex::new(send) };
         ctx.run(|local| {
             let builder = CtxBuilder::borrow(local.0);
             f(builder)
@@ -413,7 +412,7 @@ impl Ctx {
 
     fn run<T: 'static + Send>(&self, f: impl FnOnce(LocalCtx) -> T + Send + 'static) -> Result<T> {
         let (send, recv) = oneshot();
-        self.send.send(CtxAction::Fn(Box::new(|ctx_ptr| {
+        self.send.lock().unwrap().send(CtxAction::Fn(Box::new(|ctx_ptr| {
             // If the receiver is closed, what happens here doesn't matter.
             let _ = send.send(f(LocalCtx(ctx_ptr)));
         }))).map_err(thread_err)?;
