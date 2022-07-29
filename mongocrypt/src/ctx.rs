@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, ffi::CStr, marker::PhantomData, ptr};
+use std::{borrow::Borrow, ffi::{CStr, c_void}, marker::PhantomData, ptr, sync::{Weak, Arc, Mutex, mpsc::{self, Receiver, Sender}}, thread::{self, JoinHandle}};
 
 use bson::{rawdoc, Document, RawDocument};
 use mongocrypt_sys as sys;
@@ -6,8 +6,8 @@ use mongocrypt_sys as sys;
 use crate::{
     binary::{Binary, BinaryBuf, BinaryRef},
     convert::{doc_binary, rawdoc_view, str_bytes_len},
-    error::{HasStatus, Result},
-    native::OwnedPtr,
+    error::{HasStatus, Result, Status, self, Error},
+    native::OwnedPtr, Crypt,
 };
 
 pub struct CtxBuilder {
@@ -233,10 +233,6 @@ impl CtxBuilder {
         Ok(self)
     }
 
-    fn into_ctx(self) -> Ctx {
-        Ctx { inner: self.inner }
-    }
-
     /// Initialize a context to create a data key.
     pub fn build_datakey(self) -> Result<Ctx> {
         unsafe {
@@ -352,17 +348,53 @@ impl Algorithm {
 }
 
 pub struct Ctx {
-    inner: OwnedPtr<sys::mongocrypt_ctx_t>,
+    handle: JoinHandle<()>,
+    send: Sender<CtxAction>,
 }
 
 impl HasStatus for Ctx {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
-        sys::mongocrypt_ctx_status(*self.inner.borrow(), status);
+        let status = AssertSendPtr::new(status);
+        self.run(move |ctx_ptr| {
+            sys::mongocrypt_ctx_status(ctx_ptr, status.get());
+        });
     }
 }
 
 /// Manages the state machine for encryption or decryption.
 impl Ctx {
+    pub(crate) fn build(crypt: &Crypt, f: impl FnOnce(CtxBuilder) -> Result<Ctx> + Send + 'static) -> Result<Ctx> {
+        let crypt_ptr = AssertSendPtr::new(*crypt.inner.borrow());
+        //let crypt = ();
+        let (send, recv) = mpsc::channel::<CtxAction>();
+        let handle = thread::spawn(move || {
+            Self::worker(crypt_ptr, recv)
+        });
+        let ctx = Ctx { handle, send };
+        let (init_sender, init_receiver) = oneshot::<Result<()>>();
+        //let builder = CtxBuilder::steal(unsafe { sys::mongocrypt_ctx_new(crypt.0) });
+        todo!()
+    }
+
+    fn worker(crypt: AssertSendPtr, actions: Receiver<CtxAction>) {
+        let ctx = unsafe { sys::mongocrypt_ctx_new(crypt.get()) };
+        while let Ok(action) = actions.recv() {
+            match action {
+                CtxAction::Done => return,
+                CtxAction::Fn(f) => f(ctx),
+            }
+        }
+    }
+
+    fn run<T: 'static + Send>(&self, f: impl FnOnce(*mut sys::mongocrypt_ctx_t) -> T + Send + 'static) -> Result<T> {
+        let (send, recv) = oneshot();
+        self.send.send(CtxAction::Fn(Box::new(|ctx_ptr| {
+            send.send(f(ctx_ptr));
+        }))).map_err(thread_err)?;
+        recv.recv().map_err(thread_err)
+    }
+
+    /*
     /// Get the current state of a context.
     pub fn state(&self) -> Result<State> {
         let s = unsafe { sys::mongocrypt_ctx_state(*self.inner.borrow()) };
@@ -427,7 +459,7 @@ impl Ctx {
 
     /// Create a scope guard that provides handles to pending KMS requests.
     pub fn kms_scope(&mut self) -> KmsScope {
-        KmsScope { ctx: self }
+        KmsScope { ctx: self, pending: vec![] }
     }
 
     /// Call in response to the `State::NeedKmsCredentials` state
@@ -479,6 +511,52 @@ impl Ctx {
         };
         rawdoc_view(bytes)
     }
+    */
+}
+
+struct AssertSendPtr(*mut c_void);
+
+impl AssertSendPtr {
+    fn new<T>(p: *mut T) -> Self {
+        Self(p as *mut c_void)
+    }
+
+    fn get<T>(&self) -> *mut T {
+        self.0 as *mut T
+    }
+}
+
+unsafe impl Send for AssertSendPtr { }
+
+enum CtxAction {
+    Fn(Box<dyn FnOnce(*mut sys::mongocrypt_ctx_t) + Send>),
+    Done,
+}
+
+struct OneshotSender<T>(mpsc::SyncSender<T>);
+
+impl<T> OneshotSender<T> {
+    fn send(self, value: T) -> Result<()> {
+        self.0.send(value).map_err(thread_err)
+    }
+}
+
+struct OneshotReceiver<T>(mpsc::Receiver<T>);
+
+impl<T> OneshotReceiver<T> {
+    fn recv(self) -> Result<T> {
+        self.0.recv().map_err(thread_err)
+    }
+}
+
+fn thread_err<T>(_: T) -> Error {
+    error::internal!("ctx thread unexpectedly terminated")
+}
+
+/// This is a sync version of `tokio::sync::oneshot::channel`; sending will never block (and so can be used in async code), receiving will synchronously block until a value is sent.
+fn oneshot<T>() -> (OneshotSender<T>, OneshotReceiver<T>) {
+    let (sender, receiver) = mpsc::sync_channel(1);
+    (OneshotSender(sender), OneshotReceiver(receiver))
 }
 
 /// Indicates the state of the `Ctx`. Each state requires
@@ -522,67 +600,87 @@ impl State {
 /// A scope bounding the processing of (potentially multiple) KMS handles.
 pub struct KmsScope<'ctx> {
     ctx: &'ctx Ctx,
+    pending: Vec<Arc<Mutex<KmsCtxPtr>>>,
 }
 
-// This is `Iterator`-like but does not impl that because it's encouraged for multiple `KmsCtx` to
-// be retrieved and processed in parallel, as reflected in the `&self` shared reference rather than
-// `Iterator`'s exclusive `next(&mut self)`.
-impl<'ctx> KmsScope<'ctx> {
-    /// Get the next KMS handle.
-    ///
-    /// Multiple KMS handles may be retrieved at once. Drivers may do this to fan
-    /// out multiple concurrent KMS HTTP requests. Feeding multiple KMS requests
-    /// is thread-safe.
-    ///
-    /// If KMS handles are being handled synchronously, the driver can reuse the same
-    /// TLS socket to send HTTP requests and receive responses.
-    pub fn next_kms_ctx(&self) -> Option<KmsCtx> {
+impl<'ctx> Iterator for &mut KmsScope<'ctx> {
+    type Item = KmsCtx;
+
+    fn next(&mut self) -> Option<Self::Item> {
         let inner = unsafe { sys::mongocrypt_ctx_next_kms_ctx(*self.ctx.inner.borrow()) };
         if inner.is_null() {
             return None;
         }
-        Some(KmsCtx {
-            inner,
-            _marker: PhantomData,
-        })
+        let ptr = Arc::new(Mutex::new(KmsCtxPtr(inner)));
+        let out = KmsCtx(Arc::downgrade(&ptr));
+        self.pending.push(ptr);
+        Some(out)
+    }
+}
+
+impl<'ctx> KmsScope<'ctx> {
+    fn zero_pending(&mut self) {
+        for p in self.pending.drain(..) {
+            let mut guard = p.lock().unwrap();
+            guard.0 = ptr::null_mut();
+        }
+    }
+
+    pub fn done(mut self) -> Result<()> {
+        self.zero_pending();
+        unsafe {
+            if !sys::mongocrypt_ctx_kms_done(*self.ctx.inner.borrow()) {
+                return Err(self.ctx.status().as_error());
+            }
+        }
+        Ok(())
     }
 }
 
 impl<'ctx> Drop for KmsScope<'ctx> {
     fn drop(&mut self) {
-        unsafe {
-            // If this errors, it will show up in the next call to `ctx.status()` (or any other ctx call).
-            sys::mongocrypt_ctx_kms_done(*self.ctx.inner.borrow());
+        if !self.pending.is_empty() {
+            self.zero_pending();
+            if cfg!(debug_assertions) {
+                panic!("KmsScope dropped with pending KmsCtx");
+            } else {
+                eprintln!("KmsScope dropped with pending KmsCtx");
+            }
         }
     }
 }
 
 /// Manages a single KMS HTTP request/response.
-pub struct KmsCtx<'scope> {
-    inner: *mut sys::mongocrypt_kms_ctx_t,
-    _marker: PhantomData<&'scope mut ()>,
-}
+pub struct KmsCtx(Weak<Mutex<KmsCtxPtr>>);
 
-unsafe impl<'scope> Send for KmsCtx<'scope> {}
-unsafe impl<'scope> Sync for KmsCtx<'scope> {}
+struct KmsCtxPtr(*mut sys::mongocrypt_kms_ctx_t);
 
-impl<'scope> HasStatus for KmsCtx<'scope> {
+unsafe impl Send for KmsCtxPtr {}
+unsafe impl Sync for KmsCtxPtr {}
+
+impl HasStatus for KmsCtxPtr {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
-        sys::mongocrypt_kms_ctx_status(self.inner, status);
+        sys::mongocrypt_kms_ctx_status(self.0, status);
     }
 }
 
-impl<'scope> KmsCtx<'scope> {
+impl KmsCtx {
+    fn upgrade(&self) -> Result<Arc<Mutex<KmsCtxPtr>>> {
+        self.0.upgrade().ok_or_else(|| error::internal!("KmsCtx used after KmsScope dropped"))
+    }
+
     /// Get the HTTP request message for a KMS handle.
-    pub fn message(&self) -> Result<&'scope [u8]> {
+    pub fn message(&self) -> Result<Vec<u8>> {
+        let up = self.upgrade()?;
+        let ptr = up.lock().unwrap();
         // Safety: the message referenced has a lifetime that's valid until kms_done is called,
-        // which can't happen without ending 'scope.
+        // which is not a scope bound to `KmsCtx`, so we copy the data.
         unsafe {
             let bin = Binary::new();
-            if !sys::mongocrypt_kms_ctx_message(self.inner, *bin.native()) {
-                return Err(self.status().as_error());
+            if !sys::mongocrypt_kms_ctx_message(ptr.0, *bin.native()) {
+                return Err(ptr.status().as_error());
             }
-            bin.bytes()
+            Ok(bin.bytes()?.to_vec())
         }
     }
 
@@ -590,19 +688,22 @@ impl<'scope> KmsCtx<'scope> {
     ///
     /// The endpoint consists of a hostname and port separated by a colon.
     /// E.g. "example.com:123". A port is always present.
-    pub fn endpoint(&self) -> Result<&'scope str> {
-        let mut ptr: *const ::std::os::raw::c_char = ptr::null();
+    pub fn endpoint(&self) -> Result<String> {
+        let up = self.upgrade()?;
+        let ptr = up.lock().unwrap();
+        let mut str_ptr: *const ::std::os::raw::c_char = ptr::null();
         unsafe {
             if !sys::mongocrypt_kms_ctx_endpoint(
-                self.inner,
-                &mut ptr as *mut *const ::std::os::raw::c_char,
+                ptr.0,
+                &mut str_ptr as *mut *const ::std::os::raw::c_char,
             ) {
-                return Err(self.status().as_error());
+                return Err(ptr.status().as_error());
             }
-            Ok(CStr::from_ptr(ptr).to_str()?)
+            Ok(CStr::from_ptr(str_ptr).to_str()?.to_string())
         }
     }
 
+    /*
     /// Indicates how many bytes to feed into `feed`.
     pub fn bytes_needed(&self) -> u32 {
         unsafe { sys::mongocrypt_kms_ctx_bytes_needed(self.inner) }
@@ -639,6 +740,7 @@ impl<'scope> KmsCtx<'scope> {
             _ => KmsProvider::Other(s),
         })
     }
+    */
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
