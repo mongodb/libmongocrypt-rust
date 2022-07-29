@@ -60,7 +60,7 @@ fn ctx_setopts() -> Result<()> {
         .kms_provider_aws("example", "example")?
         .build()?;
 
-    let ctx = crypt.build_ctx(|builder| {
+    crypt.build_ctx(|builder| {
         builder
             .key_id(&[0; 16])?
             .key_alt_name("test")?
