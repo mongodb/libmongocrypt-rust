@@ -420,7 +420,7 @@ impl Ctx {
         Ok(ctx)
     }
 
-    fn worker_loop(crypt: AssertSendPtr, actions: Receiver<CtxAction>) {
+    fn worker_loop(crypt: AssertSendPtr<sys::mongocrypt_t>, actions: Receiver<CtxAction>) {
         let ctx = OwnedPtr::steal(
             unsafe { sys::mongocrypt_ctx_new(crypt.get()) },
             sys::mongocrypt_ctx_destroy,
@@ -578,19 +578,25 @@ impl HasStatus for LocalCtx {
     }
 }
 
-struct AssertSendPtr(*mut c_void);
+struct AssertSendPtr<T> {
+    ptr: *mut c_void,
+    _phantom: PhantomData<fn() -> T>,
+}
 
-impl AssertSendPtr {
-    fn new<T>(p: *mut T) -> Self {
-        Self(p as *mut c_void)
+impl<T> AssertSendPtr<T> {
+    fn new(p: *mut T) -> Self {
+        Self {
+            ptr: p as *mut c_void,
+            _phantom: PhantomData::default(),
+        }
     }
 
-    fn get<T>(&self) -> *mut T {
-        self.0 as *mut T
+    fn get(&self) -> *mut T {
+        self.ptr as *mut T
     }
 }
 
-unsafe impl Send for AssertSendPtr {}
+unsafe impl<T> Send for AssertSendPtr<T> {}
 
 enum CtxAction {
     Fn(Box<dyn FnOnce(*mut sys::mongocrypt_ctx_t) + Send>),
@@ -679,7 +685,7 @@ impl<'ctx> KmsScope<'ctx> {
         let inner = self
             .ctx
             .run(|inner| AssertSendPtr::new(unsafe { sys::mongocrypt_ctx_next_kms_ctx(inner.0) }))?
-            .get::<sys::mongocrypt_kms_ctx_t>();
+            .get();
         if inner.is_null() {
             return Ok(None);
         }
