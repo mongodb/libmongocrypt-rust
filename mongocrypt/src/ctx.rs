@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, ffi::{CStr, c_void}, marker::PhantomData, ptr, sync::{mpsc::{self, Receiver, Sender}, Mutex}, thread::{self, JoinHandle}};
+use std::{borrow::Borrow, ffi::{CStr, c_void}, marker::PhantomData, ptr, sync::{mpsc::{self, Receiver, Sender}, Mutex}};
 
 use bson::{rawdoc, Document, RawDocument};
 use mongocrypt_sys as sys;
@@ -361,19 +361,34 @@ impl Algorithm {
 }
 
 pub struct Ctx {
-    handle: Option<JoinHandle<()>>,
-    send: Mutex<Sender<CtxAction>>,
+    worker: Mutex<Sender<CtxAction>>,
 }
 
 impl Drop for Ctx {
     fn drop(&mut self) {
         let (send, recv) = oneshot();
-        if self.send.lock().unwrap().send(CtxAction::Done(send)).is_ok() {
+        if self.worker.lock().unwrap().send(CtxAction::Done(send)).is_ok() {
             let _ = recv.recv();
         }
-        if let Some(handle) = self.handle.take() {
-            let _ = handle.join();
-        }
+    }
+}
+
+fn spawn(f: impl FnOnce() + Send + 'static) {
+    #[cfg(all(feature = "tokio", feature = "async-std"))]
+    {
+        compile_error!("'tokio' and 'async-std' cannot both be enabled");
+    }
+    #[cfg(not(any(feature = "tokio", feature = "async-std")))]
+    {
+        std::thread::spawn(f);
+    }
+    #[cfg(feature = "tokio")]
+    {
+        tokio::task::spawn_blocking(f);
+    }
+    #[cfg(feature = "async-std")]
+    {
+        async_std::task::spawn_blocking(f);
     }
 }
 
@@ -383,10 +398,10 @@ impl Ctx {
         let crypt_ptr = AssertSendPtr::new(*crypt.inner.borrow());
         //let crypt = ();
         let (send, recv) = mpsc::channel::<CtxAction>();
-        let handle = thread::spawn(move || {
-            Self::worker(crypt_ptr, recv)
+        spawn(move || {
+            Self::worker_loop(crypt_ptr, recv)
         });
-        let ctx = Ctx { handle: Some(handle), send: Mutex::new(send) };
+        let ctx = Ctx { worker: Mutex::new(send) };
         ctx.run(|local| {
             let builder = CtxBuilder::borrow(local.0);
             f(builder)
@@ -394,7 +409,7 @@ impl Ctx {
         Ok(ctx)
     }
 
-    fn worker(crypt: AssertSendPtr, actions: Receiver<CtxAction>) {
+    fn worker_loop(crypt: AssertSendPtr, actions: Receiver<CtxAction>) {
         let ctx = OwnedPtr::steal(
             unsafe { sys::mongocrypt_ctx_new(crypt.get()) },
             sys::mongocrypt_ctx_destroy,
@@ -412,7 +427,7 @@ impl Ctx {
 
     fn run<T: 'static + Send>(&self, f: impl FnOnce(LocalCtx) -> T + Send + 'static) -> Result<T> {
         let (send, recv) = oneshot();
-        self.send.lock().unwrap().send(CtxAction::Fn(Box::new(|ctx_ptr| {
+        self.worker.lock().unwrap().send(CtxAction::Fn(Box::new(|ctx_ptr| {
             // If the receiver is closed, what happens here doesn't matter.
             let _ = send.send(f(LocalCtx(ctx_ptr)));
         }))).map_err(thread_err)?;

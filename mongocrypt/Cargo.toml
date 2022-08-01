@@ -18,6 +18,8 @@ compile_fail = []
 [dependencies]
 mongocrypt-sys = { path = "../mongocrypt-sys" }
 bson = { git = "https://github.com/mongodb/bson-rust", branch = "main" }
+tokio = { version = "1.20", features = ["rt"], optional = true }
+async-std = { version = "1.12", optional = true }
 
 [dev-dependencies]
 serde_json = "1.0.81"
