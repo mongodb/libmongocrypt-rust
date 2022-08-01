@@ -1,4 +1,13 @@
-use std::{borrow::Borrow, ffi::{CStr, c_void}, marker::PhantomData, ptr, sync::{mpsc::{self, Receiver, Sender}, Mutex}};
+use std::{
+    borrow::Borrow,
+    ffi::{c_void, CStr},
+    marker::PhantomData,
+    ptr,
+    sync::{
+        mpsc::{self, Receiver, Sender},
+        Mutex,
+    },
+};
 
 use bson::{rawdoc, Document, RawDocument};
 use mongocrypt_sys as sys;
@@ -6,8 +15,9 @@ use mongocrypt_sys as sys;
 use crate::{
     binary::{Binary, BinaryBuf, BinaryRef},
     convert::{doc_binary, rawdoc_view, str_bytes_len},
-    error::{HasStatus, Result, self, Error},
-    native::OwnedPtr, Crypt,
+    error::{self, Error, HasStatus, Result},
+    native::OwnedPtr,
+    Crypt,
 };
 
 pub struct CtxBuilder {
@@ -83,11 +93,7 @@ impl CtxBuilder {
     /// should only be set when using explicit encryption.
     pub fn algorithm(self, algorithm: Algorithm) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_algorithm(
-                self.inner,
-                algorithm.c_str().as_ptr(),
-                -1,
-            ) {
+            if !sys::mongocrypt_ctx_setopt_algorithm(self.inner, algorithm.c_str().as_ptr(), -1) {
                 return Err(self.error());
             }
         }
@@ -129,8 +135,7 @@ impl CtxBuilder {
     pub(crate) fn masterkey_aws_endpoint(self, endpoint: &str) -> Result<Self> {
         let (bytes, len) = str_bytes_len(endpoint)?;
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_masterkey_aws_endpoint(self.inner, bytes, len)
-            {
+            if !sys::mongocrypt_ctx_setopt_masterkey_aws_endpoint(self.inner, bytes, len) {
                 return Err(self.error());
             }
         }
@@ -194,10 +199,7 @@ impl CtxBuilder {
     /// The contention factor is only used for indexed Queryable Encryption.
     pub fn contention_factor(self, contention_factor: i64) -> Result<Self> {
         unsafe {
-            if !sys::mongocrypt_ctx_setopt_contention_factor(
-                self.inner,
-                contention_factor,
-            ) {
+            if !sys::mongocrypt_ctx_setopt_contention_factor(self.inner, contention_factor) {
                 return Err(self.error());
             }
         }
@@ -367,7 +369,13 @@ pub struct Ctx {
 impl Drop for Ctx {
     fn drop(&mut self) {
         let (send, recv) = oneshot();
-        if self.worker.lock().unwrap().send(CtxAction::Done(send)).is_ok() {
+        if self
+            .worker
+            .lock()
+            .unwrap()
+            .send(CtxAction::Done(send))
+            .is_ok()
+        {
             let _ = recv.recv();
         }
     }
@@ -394,14 +402,17 @@ fn spawn(f: impl FnOnce() + Send + 'static) {
 
 /// Manages the state machine for encryption or decryption.
 impl Ctx {
-    pub(crate) fn build(crypt: &Crypt, f: impl FnOnce(CtxBuilder) -> Result<BuiltCtx> + Send + 'static) -> Result<Ctx> {
+    pub(crate) fn build(
+        crypt: &Crypt,
+        f: impl FnOnce(CtxBuilder) -> Result<BuiltCtx> + Send + 'static,
+    ) -> Result<Ctx> {
         let crypt_ptr = AssertSendPtr::new(*crypt.inner.borrow());
         //let crypt = ();
         let (send, recv) = mpsc::channel::<CtxAction>();
-        spawn(move || {
-            Self::worker_loop(crypt_ptr, recv)
-        });
-        let ctx = Ctx { worker: Mutex::new(send) };
+        spawn(move || Self::worker_loop(crypt_ptr, recv));
+        let ctx = Ctx {
+            worker: Mutex::new(send),
+        };
         ctx.run(|local| {
             let builder = CtxBuilder::borrow(local.0);
             f(builder)
@@ -416,25 +427,30 @@ impl Ctx {
         );
         while let Ok(action) = actions.recv() {
             match action {
+                CtxAction::Fn(f) => f(*ctx.borrow()),
                 CtxAction::Done(send) => {
                     let _ = send.send(());
                     return;
                 }
-                CtxAction::Fn(f) => f(*ctx.borrow()),
             }
         }
     }
 
     fn run<T: 'static + Send>(&self, f: impl FnOnce(LocalCtx) -> T + Send + 'static) -> Result<T> {
         let (send, recv) = oneshot();
-        self.worker.lock().unwrap().send(CtxAction::Fn(Box::new(|ctx_ptr| {
-            // If the receiver is closed, what happens here doesn't matter.
-            let _ = send.send(f(LocalCtx(ctx_ptr)));
-        }))).map_err(thread_err)?;
+        self.worker
+            .lock()
+            .unwrap()
+            .send(CtxAction::Fn(Box::new(|ctx_ptr| {
+                // If the receiver is closed, what happens here doesn't matter.
+                let _ = send.send(f(LocalCtx(ctx_ptr)));
+            })))
+            .map_err(thread_err)?;
         recv.recv().map_err(thread_err)
     }
 
-    fn run_err(&self, f: impl FnOnce(&LocalCtx) -> bool + Send + 'static) -> Result<()> {
+    /// Convenience wrapper for `run` that turns a boolean failure into a `Result`.
+    fn run_result(&self, f: impl FnOnce(&LocalCtx) -> bool + Send + 'static) -> Result<()> {
         self.run(move |local| {
             if !f(&local) {
                 return Err(local.error());
@@ -464,8 +480,8 @@ impl Ctx {
         let op_bytes = {
             let bin = Binary::new();
             let bin_ptr = AssertSendPtr::new(*bin.native());
-            self.run_err(move |local| {
-                unsafe { sys::mongocrypt_ctx_mongo_op(local.0, bin_ptr.get()) }
+            self.run_result(move |local| unsafe {
+                sys::mongocrypt_ctx_mongo_op(local.0, bin_ptr.get())
             })?;
             // Safety: `mongocrypt_ctx_mongo_op` updates the passed-in `Binary` to point to a chunk of
             // BSON with the same lifetime as the underlying `Ctx`.  The `Binary` itself does not own
@@ -491,16 +507,12 @@ impl Ctx {
     pub fn mongo_feed(&mut self, reply: &RawDocument) -> Result<()> {
         let bin = BinaryRef::new(reply.as_bytes());
         let bin_ptr = AssertSendPtr::new(unsafe { *bin.native() });
-        self.run_err(move |local| {
-            unsafe { sys::mongocrypt_ctx_mongo_feed(local.0, bin_ptr.get()) }
-        })
+        self.run_result(move |local| unsafe { sys::mongocrypt_ctx_mongo_feed(local.0, bin_ptr.get()) })
     }
 
     /// Call when done feeding the reply (or replies) back to the context.
     pub fn mongo_done(&mut self) -> Result<()> {
-        self.run_err(|local| {
-            unsafe { sys::mongocrypt_ctx_mongo_done(local.0) }
-        })
+        self.run_result(|local| unsafe { sys::mongocrypt_ctx_mongo_done(local.0) })
     }
 
     /// Create a scope guard that provides handles to pending KMS requests.
@@ -516,8 +528,8 @@ impl Ctx {
     pub fn provide_kms_providers(&mut self, kms_providers_definition: &RawDocument) -> Result<()> {
         let bin = BinaryRef::new(kms_providers_definition.as_bytes());
         let bin_ptr = AssertSendPtr::new(unsafe { *bin.native() });
-        self.run_err(move |local| {
-            unsafe { sys::mongocrypt_ctx_provide_kms_providers(local.0, bin_ptr.get()) }
+        self.run_result(move |local| unsafe {
+            sys::mongocrypt_ctx_provide_kms_providers(local.0, bin_ptr.get())
         })
     }
 
@@ -549,8 +561,8 @@ impl Ctx {
         let bytes = {
             let bin = Binary::new();
             let bin_ptr = AssertSendPtr::new(*bin.native());
-            self.run_err(move |local| {
-                unsafe { sys::mongocrypt_ctx_finalize(local.0, bin_ptr.get()) }
+            self.run_result(move |local| unsafe {
+                sys::mongocrypt_ctx_finalize(local.0, bin_ptr.get())
             })?;
             unsafe { bin.bytes()? }
         };
@@ -578,7 +590,7 @@ impl AssertSendPtr {
     }
 }
 
-unsafe impl Send for AssertSendPtr { }
+unsafe impl Send for AssertSendPtr {}
 
 enum CtxAction {
     Fn(Box<dyn FnOnce(*mut sys::mongocrypt_ctx_t) + Send>),
@@ -664,9 +676,10 @@ impl<'ctx> KmsScope<'ctx> {
     /// If KMS handles are being handled synchronously, the driver can reuse the same
     /// TLS socket to send HTTP requests and receive responses.
     pub fn next_kms_ctx(&self) -> Result<Option<KmsCtx>> {
-        let inner = self.ctx.run(|inner| {
-            AssertSendPtr::new(unsafe { sys::mongocrypt_ctx_next_kms_ctx(inner.0) })
-        })?.get::<sys::mongocrypt_kms_ctx_t>();
+        let inner = self
+            .ctx
+            .run(|inner| AssertSendPtr::new(unsafe { sys::mongocrypt_ctx_next_kms_ctx(inner.0) }))?
+            .get::<sys::mongocrypt_kms_ctx_t>();
         if inner.is_null() {
             return Ok(None);
         }
@@ -680,8 +693,8 @@ impl<'ctx> KmsScope<'ctx> {
 impl<'ctx> Drop for KmsScope<'ctx> {
     fn drop(&mut self) {
         // If this errors, it will show up in the next call to `ctx.status()` (or any other ctx call).
-        let _ = self.ctx.run(|inner| {
-            unsafe { sys::mongocrypt_ctx_kms_done(inner.0); }
+        let _ = self.ctx.run(|inner| unsafe {
+            sys::mongocrypt_ctx_kms_done(inner.0);
         });
     }
 }

@@ -140,25 +140,21 @@ fn explicit_encryption_decryption() -> Result<()> {
 
     // Encryption
     let key_doc = load_doc_from_json("../testdata/key-document.json");
-    let mut ctx = crypt.build_ctx(move |builder|
-        {
-            let key_bytes = match key_doc.get("_id").unwrap() {
-                Bson::Binary(bson::Binary { bytes, .. }) => bytes,
-                _ => panic!("non-binary bson"),
-            };        
-            builder
-                .key_id(key_bytes)?
-                .algorithm(Algorithm::AeadAes256CbcHmacSha512Random)?
-                .build_explicit_encrypt(RawBson::String("hello".to_string()))
-        }
-    )?;
+    let mut ctx = crypt.build_ctx(move |builder| {
+        let key_bytes = match key_doc.get("_id").unwrap() {
+            Bson::Binary(bson::Binary { bytes, .. }) => bytes,
+            _ => panic!("non-binary bson"),
+        };
+        builder
+            .key_id(key_bytes)?
+            .algorithm(Algorithm::AeadAes256CbcHmacSha512Random)?
+            .build_explicit_encrypt(RawBson::String("hello".to_string()))
+    })?;
     let result = run_state_machine(&mut ctx)?;
 
     // Decryption
-    let mut ctx = crypt.build_ctx(move |builder|
-        builder
-            .build_explicit_decrypt(result.as_bytes())
-    )?;
+    let mut ctx =
+        crypt.build_ctx(move |builder| builder.build_explicit_decrypt(result.as_bytes()))?;
     run_state_machine(&mut ctx)?;
 
     Ok(())

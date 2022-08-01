@@ -4,7 +4,7 @@ use bson::Document;
 #[cfg(test)]
 use convert::str_bytes_len;
 use convert::{doc_binary, path_bytes};
-use ctx::{CtxBuilder, Ctx, BuiltCtx};
+use ctx::{BuiltCtx, Ctx, CtxBuilder};
 use mongocrypt_sys as sys;
 
 mod binary;
@@ -283,7 +283,10 @@ impl Crypt {
         Some(out)
     }
 
-    pub fn build_ctx(&self, f: impl FnOnce(CtxBuilder) -> Result<BuiltCtx> + Send + 'static) -> Result<Ctx> {
-        Ctx::build(&self, f)
+    pub fn build_ctx(
+        &self,
+        f: impl FnOnce(CtxBuilder) -> Result<BuiltCtx> + Send + 'static,
+    ) -> Result<Ctx> {
+        Ctx::build(self, f)
     }
 }
