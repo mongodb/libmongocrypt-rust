@@ -663,6 +663,9 @@ pub struct KmsScope<'ctx> {
     ctx: &'ctx Ctx,
 }
 
+// This is `Iterator`-like but does not impl that because it's encouraged for multiple `KmsCtx` to
+// be retrieved and processed in parallel, as reflected in the `&self` shared reference rather than
+// `Iterator`'s exclusive `next(&mut self)`.
 impl<'ctx> KmsScope<'ctx> {
     /// Get the next KMS handle.
     ///
