@@ -1,6 +1,6 @@
 use std::{
     borrow::Borrow,
-    ffi::{c_void, CStr},
+    ffi::CStr,
     marker::PhantomData,
     ptr,
     sync::{
@@ -406,8 +406,7 @@ impl Ctx {
         crypt: &Crypt,
         f: impl FnOnce(CtxBuilder) -> Result<BuiltCtx> + Send + 'static,
     ) -> Result<Ctx> {
-        let crypt_ptr = AssertSendPtr::new(*crypt.inner.borrow());
-        //let crypt = ();
+        let crypt_ptr = AssertSendPtr(*crypt.inner.borrow());
         let (send, recv) = mpsc::channel::<CtxAction>();
         spawn(move || Self::worker_loop(crypt_ptr, recv));
         let ctx = Ctx {
@@ -479,7 +478,7 @@ impl Ctx {
     pub fn mongo_op(&self) -> Result<&RawDocument> {
         let op_bytes = {
             let bin = Binary::new();
-            let bin_ptr = AssertSendPtr::new(*bin.native());
+            let bin_ptr = AssertSendPtr(*bin.native());
             self.run_result(move |local| unsafe {
                 sys::mongocrypt_ctx_mongo_op(local.0, bin_ptr.get())
             })?;
@@ -506,8 +505,10 @@ impl Ctx {
     /// - For `State::NeedMongoMarkings` it is a reply from mongocryptd.
     pub fn mongo_feed(&mut self, reply: &RawDocument) -> Result<()> {
         let bin = BinaryRef::new(reply.as_bytes());
-        let bin_ptr = AssertSendPtr::new(unsafe { *bin.native() });
-        self.run_result(move |local| unsafe { sys::mongocrypt_ctx_mongo_feed(local.0, bin_ptr.get()) })
+        let bin_ptr = AssertSendPtr(unsafe { *bin.native() });
+        self.run_result(move |local| unsafe {
+            sys::mongocrypt_ctx_mongo_feed(local.0, bin_ptr.get())
+        })
     }
 
     /// Call when done feeding the reply (or replies) back to the context.
@@ -527,7 +528,7 @@ impl Ctx {
     /// at initialization are used.
     pub fn provide_kms_providers(&mut self, kms_providers_definition: &RawDocument) -> Result<()> {
         let bin = BinaryRef::new(kms_providers_definition.as_bytes());
-        let bin_ptr = AssertSendPtr::new(unsafe { *bin.native() });
+        let bin_ptr = AssertSendPtr(unsafe { *bin.native() });
         self.run_result(move |local| unsafe {
             sys::mongocrypt_ctx_provide_kms_providers(local.0, bin_ptr.get())
         })
@@ -560,7 +561,7 @@ impl Ctx {
     pub fn finalize(&mut self) -> Result<&RawDocument> {
         let bytes = {
             let bin = Binary::new();
-            let bin_ptr = AssertSendPtr::new(*bin.native());
+            let bin_ptr = AssertSendPtr(*bin.native());
             self.run_result(move |local| unsafe {
                 sys::mongocrypt_ctx_finalize(local.0, bin_ptr.get())
             })?;
@@ -578,21 +579,11 @@ impl HasStatus for LocalCtx {
     }
 }
 
-struct AssertSendPtr<T> {
-    ptr: *mut c_void,
-    _phantom: PhantomData<fn() -> T>,
-}
+struct AssertSendPtr<T>(*mut T);
 
 impl<T> AssertSendPtr<T> {
-    fn new(p: *mut T) -> Self {
-        Self {
-            ptr: p as *mut c_void,
-            _phantom: PhantomData::default(),
-        }
-    }
-
     fn get(&self) -> *mut T {
-        self.ptr as *mut T
+        self.0
     }
 }
 
@@ -684,7 +675,7 @@ impl<'ctx> KmsScope<'ctx> {
     pub fn next_kms_ctx(&self) -> Result<Option<KmsCtx>> {
         let inner = self
             .ctx
-            .run(|inner| AssertSendPtr::new(unsafe { sys::mongocrypt_ctx_next_kms_ctx(inner.0) }))?
+            .run(|inner| AssertSendPtr(unsafe { sys::mongocrypt_ctx_next_kms_ctx(inner.0) }))?
             .get();
         if inner.is_null() {
             return Ok(None);
