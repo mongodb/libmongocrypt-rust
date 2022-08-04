@@ -355,6 +355,7 @@ pub struct Ctx {
     inner: OwnedPtr<sys::mongocrypt_ctx_t>,
 }
 
+// Functions on `mongocrypt_ctx_t` are not threadsafe but do not rely on any thread-local state, so `Ctx` is `Send` but not `Sync.
 unsafe impl Send for Ctx {}
 
 impl HasStatus for Ctx {
@@ -526,6 +527,7 @@ pub struct KmsScope<'ctx> {
     ctx: &'ctx Ctx,
 }
 
+// Handling multiple KMS requests is threadsafe, so `KmsScope` can be both `Send` and `Sync`.
 unsafe impl<'ctx> Send for KmsScope<'ctx> {}
 unsafe impl<'ctx> Sync for KmsScope<'ctx> {}
 
