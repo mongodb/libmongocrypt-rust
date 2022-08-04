@@ -355,6 +355,8 @@ pub struct Ctx {
     inner: OwnedPtr<sys::mongocrypt_ctx_t>,
 }
 
+unsafe impl Send for Ctx {}
+
 impl HasStatus for Ctx {
     unsafe fn native_status(&self, status: *mut sys::mongocrypt_status_t) {
         sys::mongocrypt_ctx_status(*self.inner.borrow(), status);
@@ -523,6 +525,9 @@ impl State {
 pub struct KmsScope<'ctx> {
     ctx: &'ctx Ctx,
 }
+
+unsafe impl<'ctx> Send for KmsScope<'ctx> {}
+unsafe impl<'ctx> Sync for KmsScope<'ctx> {}
 
 // This is `Iterator`-like but does not impl that because it's encouraged for multiple `KmsCtx` to
 // be retrieved and processed in parallel, as reflected in the `&self` shared reference rather than
