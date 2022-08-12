@@ -648,11 +648,23 @@ impl<'scope> KmsCtx<'scope> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum KmsProvider {
     Aws,
     Azure,
     Gcp,
     Kmip,
     Other(&'static str),
+}
+
+impl KmsProvider {
+    pub fn name(&self) -> &'static str {
+        match self {
+            KmsProvider::Aws => "aws",
+            KmsProvider::Azure => "azure",
+            KmsProvider::Gcp => "gcp",
+            KmsProvider::Kmip => "kmip",
+            KmsProvider::Other(s) => s,
+        }
+    }
 }
