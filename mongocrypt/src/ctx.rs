@@ -2,6 +2,7 @@ use std::{borrow::Borrow, ffi::CStr, marker::PhantomData, ptr};
 
 use bson::{rawdoc, Document, RawDocument};
 use mongocrypt_sys as sys;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     binary::{Binary, BinaryBuf, BinaryRef},
@@ -638,13 +639,7 @@ impl<'scope> KmsCtx<'scope> {
             let ptr = sys::mongocrypt_kms_ctx_get_kms_provider(self.inner, ptr::null_mut());
             CStr::from_ptr(ptr).to_str()?
         };
-        Ok(match s {
-            "aws" => KmsProvider::Aws,
-            "azure" => KmsProvider::Azure,
-            "gcp" => KmsProvider::Gcp,
-            "kmip" => KmsProvider::Kmip,
-            _ => KmsProvider::Other(s),
-        })
+        Ok(KmsProvider::from_name(s))
     }
 }
 
@@ -654,17 +649,60 @@ pub enum KmsProvider {
     Azure,
     Gcp,
     Kmip,
-    Other(&'static str),
+    Local,
+    Other(String),
 }
 
 impl KmsProvider {
-    pub fn name(&self) -> &'static str {
+    pub fn name(&self) -> &str {
         match self {
             KmsProvider::Aws => "aws",
             KmsProvider::Azure => "azure",
             KmsProvider::Gcp => "gcp",
             KmsProvider::Kmip => "kmip",
+            KmsProvider::Local => "local",
             KmsProvider::Other(s) => s,
         }
+    }
+
+    pub fn from_name(name: &str) -> Self {
+        match name {
+            "aws" => KmsProvider::Aws,
+            "azure" => KmsProvider::Azure,
+            "gcp" => KmsProvider::Gcp,
+            "kmip" => KmsProvider::Kmip,
+            "local" => KmsProvider::Local,
+            s => KmsProvider::Other(s.to_string()),
+        }
+    }
+}
+
+impl Serialize for KmsProvider {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer {
+        serializer.serialize_str(self.name())
+    }
+}
+
+impl<'de> Deserialize<'de> for KmsProvider {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de> {
+        struct V;
+        impl<'de> serde::de::Visitor<'de> for V {
+            type Value = KmsProvider;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(formatter, "a string containing a KMS provider name")
+            }
+
+            fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
+                where
+                    E: serde::de::Error, {
+                Ok(KmsProvider::from_name(v))
+            }
+        }
+        deserializer.deserialize_str(V)
     }
 }
