@@ -338,6 +338,8 @@ impl CtxBuilder {
 pub enum Algorithm {
     AeadAes256CbcHmacSha512Deterministic,
     AeadAes256CbcHmacSha512Random,
+    Indexed,
+    Unindexed,
 }
 
 impl Algorithm {
@@ -347,6 +349,8 @@ impl Algorithm {
                 b"AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic\0"
             }
             Self::AeadAes256CbcHmacSha512Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
+            Self::Indexed => b"Indexed\0",
+            Self::Unindexed => b"Unindexed\0",
         };
         unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
     }
@@ -680,7 +684,8 @@ impl KmsProvider {
 impl Serialize for KmsProvider {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
-        S: serde::Serializer {
+        S: serde::Serializer,
+    {
         serializer.serialize_str(self.name())
     }
 }
@@ -688,7 +693,8 @@ impl Serialize for KmsProvider {
 impl<'de> Deserialize<'de> for KmsProvider {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de> {
+        D: serde::Deserializer<'de>,
+    {
         struct V;
         impl<'de> serde::de::Visitor<'de> for V {
             type Value = KmsProvider;
@@ -698,8 +704,9 @@ impl<'de> Deserialize<'de> for KmsProvider {
             }
 
             fn visit_str<E>(self, v: &str) -> std::result::Result<Self::Value, E>
-                where
-                    E: serde::de::Error, {
+            where
+                E: serde::de::Error,
+            {
                 Ok(KmsProvider::from_name(v))
             }
         }
