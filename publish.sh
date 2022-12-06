@@ -24,3 +24,5 @@ git checkout $CRATE-$VERSION
 
 cd $CRATE
 cargo publish --token $TOKEN "$@"
+
+git checkout main
