@@ -17,8 +17,8 @@ repository = "https://github.com/mongodb/libmongocrypt-rust"
 compile_fail = []
 
 [dependencies]
-mongocrypt-sys = "0.1"
-bson = "2.4.0"
+mongocrypt-sys = { path = "../mongocrypt-sys" }
+bson = { git = "https://github.com/mongodb/bson-rust", branch = "main" }
 serde = "1.0.125"
 
 [dev-dependencies]
