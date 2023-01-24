@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, ffi::CStr, path::Path, ptr};
+use std::{borrow::Borrow, ffi::CStr, path::Path, ptr, sync::Mutex};
 
 use bson::Document;
 #[cfg(test)]
@@ -19,6 +19,7 @@ mod test;
 use error::{HasStatus, Result};
 pub use hooks::*;
 use native::OwnedPtr;
+use once_cell::sync::Lazy;
 
 /// Returns the version string for libmongocrypt.
 pub fn version() -> &'static str {
@@ -38,11 +39,18 @@ impl HasStatus for CryptBuilder {
     }
 }
 
+static CRYPT_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
+
+unsafe extern "C" fn mongocrypt_destroy_locked(crypt: *mut sys::mongocrypt_t) {
+    let _guard = CRYPT_LOCK.lock().unwrap();
+    sys::mongocrypt_destroy(crypt);
+}
+
 impl CryptBuilder {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
-            inner: OwnedPtr::steal(unsafe { sys::mongocrypt_new() }, sys::mongocrypt_destroy),
+            inner: OwnedPtr::steal(unsafe { sys::mongocrypt_new() }, mongocrypt_destroy_locked),
             cleanup: vec![],
         }
     }
@@ -216,6 +224,8 @@ impl CryptBuilder {
     }
 
     pub fn build(mut self) -> Result<Crypt> {
+        let _guard = CRYPT_LOCK.lock().unwrap();
+
         let ok = unsafe { sys::mongocrypt_init(*self.inner.borrow()) };
         if !ok {
             return Err(self.status().as_error());
