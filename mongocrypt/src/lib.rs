@@ -39,6 +39,7 @@ impl HasStatus for CryptBuilder {
     }
 }
 
+// This works around a possible race condition in mongocrypt [de]initialization; see RUST-1578 for details.
 static CRYPT_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 unsafe extern "C" fn mongocrypt_destroy_locked(crypt: *mut sys::mongocrypt_t) {
