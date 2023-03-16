@@ -99,8 +99,7 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                     doc_from_binary(output)
                 );
                 mongocrypt_binary_destroy(output);
-                let input =
-                    BinaryBuffer::read_json_as_bson("../testdata/collection-info.json");
+                let input = BinaryBuffer::read_json_as_bson("../testdata/collection-info.json");
                 println!(
                     "\nmocking reply from file:\n{:?}",
                     doc_from_binary(input.binary)
@@ -116,8 +115,7 @@ unsafe fn run_state_machine(ctx: *mut mongocrypt_ctx_t) -> Document {
                     doc_from_binary(output)
                 );
                 mongocrypt_binary_destroy(output);
-                let input =
-                    BinaryBuffer::read_json_as_bson("../testdata/mongocryptd-reply.json");
+                let input = BinaryBuffer::read_json_as_bson("../testdata/mongocryptd-reply.json");
                 println!(
                     "\nmocking reply from file:\n{:?}",
                     doc_from_binary(input.binary)

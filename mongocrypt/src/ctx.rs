@@ -234,6 +234,17 @@ impl CtxBuilder {
         Ok(self)
     }
 
+    /// isabeltodo document
+    pub fn range_options(self, options: Document) -> Result<Self> {
+        let mut bin = doc_binary(&options)?;
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_algorithm_range(*self.inner.borrow(), *bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self)
+    }
+
     fn into_ctx(self) -> Ctx {
         Ctx { inner: self.inner }
     }
@@ -282,6 +293,29 @@ impl CtxBuilder {
         let mut bin: BinaryBuf = rawdoc! { "v": value }.into();
         unsafe {
             if !sys::mongocrypt_ctx_explicit_encrypt_init(*self.inner.borrow(), *bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self.into_ctx())
+    }
+
+    /// Explicit helper method to encrypt a single BSON object. Contexts
+    /// created for explicit encryption will not go through mongocryptd.   
+    ///
+    /// To specify a key_id, algorithm, or iv to use, please use the
+    /// corresponding methods before calling this.
+    ///
+    /// An error is returned if FLE 1 and Queryable Encryption incompatible options
+    /// are set.
+    ///
+    /// * `value` - the expression to encrypt.
+    pub fn build_explicit_encrypt_expression(self, value: bson::RawDocumentBuf) -> Result<Ctx> {
+        let mut bin: BinaryBuf = rawdoc! { "v": value }.into();
+        unsafe {
+            if !sys::mongocrypt_ctx_explicit_encrypt_expression_init(
+                *self.inner.borrow(),
+                *bin.native(),
+            ) {
                 return Err(self.status().as_error());
             }
         }
@@ -340,6 +374,7 @@ pub enum Algorithm {
     AeadAes256CbcHmacSha512Random,
     Indexed,
     Unindexed,
+    RangePreview,
 }
 
 impl Algorithm {
@@ -351,6 +386,7 @@ impl Algorithm {
             Self::AeadAes256CbcHmacSha512Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
             Self::Indexed => b"Indexed\0",
             Self::Unindexed => b"Unindexed\0",
+            Self::RangePreview => b"RangePreview\0",
         };
         unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
     }
@@ -360,7 +396,7 @@ pub struct Ctx {
     inner: OwnedPtr<sys::mongocrypt_ctx_t>,
 }
 
-// Functions on `mongocrypt_ctx_t` are not threadsafe but do not rely on any thread-local state, so `Ctx` is `Send` but not `Sync.
+// Functions on `mongocrypt_ctx_t` are not threadsafe but do not rely on any thread-local state, so `Ctx` is `Send` but not `Sync`.
 unsafe impl Send for Ctx {}
 
 impl HasStatus for Ctx {
