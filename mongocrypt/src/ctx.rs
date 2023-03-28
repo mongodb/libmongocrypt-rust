@@ -234,7 +234,7 @@ impl CtxBuilder {
         Ok(self)
     }
 
-    /// isabeltodo document
+    /// Set the range options.
     pub fn range_options(self, options: Document) -> Result<Self> {
         let mut bin = doc_binary(&options)?;
         unsafe {
@@ -280,7 +280,7 @@ impl CtxBuilder {
     }
 
     /// Explicit helper method to encrypt a single BSON object. Contexts
-    /// created for explicit encryption will not go through mongocryptd.   
+    /// created for explicit encryption will not go through mongocryptd.
     ///
     /// To specify a key_id, algorithm, or iv to use, please use the
     /// corresponding methods before calling this.
@@ -299,8 +299,8 @@ impl CtxBuilder {
         Ok(self.into_ctx())
     }
 
-    /// Explicit helper method to encrypt a single BSON object. Contexts
-    /// created for explicit encryption will not go through mongocryptd.   
+    /// Explicit helper method to encrypt an expression. Contexts
+    /// created for explicit encryption will not go through mongocryptd.
     ///
     /// To specify a key_id, algorithm, or iv to use, please use the
     /// corresponding methods before calling this.
