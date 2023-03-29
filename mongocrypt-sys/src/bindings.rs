@@ -266,7 +266,7 @@ extern "C" {
     pub fn mongocrypt_ctx_setopt_masterkey_local(ctx: *mut mongocrypt_ctx_t) -> bool;
 }
 extern "C" {
-    #[doc = " Set key encryption key document for creating a data key or for rewrapping\n datakeys.\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[in] bin BSON representing the key encryption key document with\n an additional \"provider\" field. The following forms are accepted:\n\n AWS\n {\n    provider: \"aws\",\n    region: <string>,\n    key: <string>,\n    endpoint: <optional string>\n }\n\n Azure\n {\n    provider: \"azure\",\n    keyVaultEndpoint: <string>,\n    keyName: <string>,\n    keyVersion: <optional string>\n }\n\n GCP\n {\n    provider: \"gcp\",\n    projectId: <string>,\n    location: <string>,\n    keyRing: <string>,\n    keyName: <string>,\n    keyVersion: <optional string>,\n    endpoint: <optional string>\n }\n\n Local\n {\n    provider: \"local\"\n }\n\n KMIP\n {\n    provider: \"kmip\",\n    keyId: <optional string>\n    endpoint: <string>\n }\n\n @pre @p ctx has not been initialized.\n @returns A boolean indicating success. If false, and error status is set.\n Retrieve it with @ref mongocrypt_ctx_status."]
+    #[doc = " Set key encryption key document for creating a data key or for rewrapping\n datakeys.\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[in] bin BSON representing the key encryption key document with\n an additional \"provider\" field. The following forms are accepted:\n\n AWS\n {\n    provider: \"aws\",\n    region: <string>,\n    key: <string>,\n    endpoint: <optional string>\n }\n\n Azure\n {\n    provider: \"azure\",\n    keyVaultEndpoint: <string>,\n    keyName: <string>,\n    keyVersion: <optional string>\n }\n\n GCP\n {\n    provider: \"gcp\",\n    projectId: <string>,\n    location: <string>,\n    keyRing: <string>,\n    keyName: <string>,\n    keyVersion: <optional string>,\n    endpoint: <optional string>\n }\n\n Local\n {\n    provider: \"local\"\n }\n\n KMIP\n {\n    provider: \"kmip\",\n    keyId: <optional string>\n    endpoint: <string>\n }\n\n @pre @p ctx has not been initialized.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status."]
     pub fn mongocrypt_ctx_setopt_key_encryption_key(
         ctx: *mut mongocrypt_ctx_t,
         bin: *mut mongocrypt_binary_t,
@@ -286,8 +286,15 @@ extern "C" {
     ) -> bool;
 }
 extern "C" {
-    #[doc = " Explicit helper method to encrypt a single BSON object. Contexts\n created for explicit encryption will not go through mongocryptd.\n\n To specify a key_id, algorithm, or iv to use, please use the\n corresponding mongocrypt_setopt methods before calling this.\n\n This method expects the passed-in BSON to be of the form:\n { \"v\" : BSON value to encrypt }\n\n Associated options for FLE 1:\n - @ref mongocrypt_ctx_setopt_key_id\n - @ref mongocrypt_ctx_setopt_key_alt_name\n - @ref mongocrypt_ctx_setopt_algorithm\n\n Associated options for Queryable Encryption:\n - @ref mongocrypt_ctx_setopt_key_id\n - @ref mongocrypt_ctx_setopt_index_key_id\n - @ref mongocrypt_ctx_setopt_contention_factor\n - @ref mongocrypt_ctx_setopt_query_type\n\n An error is returned if FLE 1 and Queryable Encryption incompatible options\n are set.\n\n @param[in] ctx A @ref mongocrypt_ctx_t.\n @param[in] msg A @ref mongocrypt_binary_t the plaintext BSON value. The\n viewed data is copied. It is valid to destroy @p msg with @ref\n mongocrypt_binary_destroy immediately after.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
+    #[doc = " Explicit helper method to encrypt a single BSON object. Contexts\n created for explicit encryption will not go through mongocryptd.\n\n To specify a key_id, algorithm, or iv to use, please use the\n corresponding mongocrypt_setopt methods before calling this.\n\n This method expects the passed-in BSON to be of the form:\n { \"v\" : BSON value to encrypt }\n\n The value of \"v\" is expected to be the BSON value passed to a driver\n ClientEncryption.encrypt helper.\n\n Associated options for FLE 1:\n - @ref mongocrypt_ctx_setopt_key_id\n - @ref mongocrypt_ctx_setopt_key_alt_name\n - @ref mongocrypt_ctx_setopt_algorithm\n\n Associated options for Queryable Encryption:\n - @ref mongocrypt_ctx_setopt_key_id\n - @ref mongocrypt_ctx_setopt_index_key_id\n - @ref mongocrypt_ctx_setopt_contention_factor\n - @ref mongocrypt_ctx_setopt_query_type\n - @ref mongocrypt_ctx_setopt_algorithm_range\n\n An error is returned if FLE 1 and Queryable Encryption incompatible options\n are set.\n\n @param[in] ctx A @ref mongocrypt_ctx_t.\n @param[in] msg A @ref mongocrypt_binary_t the plaintext BSON value. The\n viewed data is copied. It is valid to destroy @p msg with @ref\n mongocrypt_binary_destroy immediately after.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
     pub fn mongocrypt_ctx_explicit_encrypt_init(
+        ctx: *mut mongocrypt_ctx_t,
+        msg: *mut mongocrypt_binary_t,
+    ) -> bool;
+}
+extern "C" {
+    #[doc = " Explicit helper method to encrypt a Match Expression or Aggregate Expression.\n Contexts created for explicit encryption will not go through mongocryptd.\n Requires query_type to be \"rangePreview\".\n NOTE: The RangePreview algorithm is experimental only. It is not intended for\n public use.\n\n This method expects the passed-in BSON to be of the form:\n { \"v\" : FLE2RangeFindDriverSpec }\n\n FLE2RangeFindDriverSpec is a BSON document with one of these forms:\n\n 1. A Match Expression of this form:\n    {$and: [{<field>: {<op>: <value1>, {<field>: {<op>: <value2> }}]}\n 2. An Aggregate Expression of this form:\n    {$and: [{<op>: [<fieldpath>, <value1>]}, {<op>: [<fieldpath>, <value2>]}]\n\n <op> may be $lt, $lte, $gt, or $gte.\n\n The value of \"v\" is expected to be the BSON value passed to a driver\n ClientEncryption.encryptExpression helper.\n\n Associated options for FLE 1:\n - @ref mongocrypt_ctx_setopt_key_id\n - @ref mongocrypt_ctx_setopt_key_alt_name\n - @ref mongocrypt_ctx_setopt_algorithm\n\n Associated options for Queryable Encryption:\n - @ref mongocrypt_ctx_setopt_key_id\n - @ref mongocrypt_ctx_setopt_index_key_id\n - @ref mongocrypt_ctx_setopt_contention_factor\n - @ref mongocrypt_ctx_setopt_query_type\n - @ref mongocrypt_ctx_setopt_algorithm_range\n\n An error is returned if FLE 1 and Queryable Encryption incompatible options\n are set.\n\n @param[in] ctx A @ref mongocrypt_ctx_t.\n @param[in] msg A @ref mongocrypt_binary_t the plaintext BSON value. The\n viewed data is copied. It is valid to destroy @p msg with @ref\n mongocrypt_binary_destroy immediately after.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
+    pub fn mongocrypt_ctx_explicit_encrypt_expression_init(
         ctx: *mut mongocrypt_ctx_t,
         msg: *mut mongocrypt_binary_t,
     ) -> bool;
@@ -400,7 +407,7 @@ extern "C" {
     pub fn mongocrypt_ctx_kms_done(ctx: *mut mongocrypt_ctx_t) -> bool;
 }
 extern "C" {
-    #[doc = " Call in response to the MONGOCRYPT_CTX_NEED_KMS_CREDENTIALS state\n to set per-context KMS provider settings. These follow the same format\n as @ref mongocrypt_setopt_kms_providers. If no keys are present in the\n BSON input, the KMS provider settings configured for the @ref mongocrypt_t\n at initialization are used.\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[in] kms_providers A BSON document mapping the KMS provider names\n to credentials.\n\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status."]
+    #[doc = " Call in response to the MONGOCRYPT_CTX_NEED_KMS_CREDENTIALS state\n to set per-context KMS provider settings. These follow the same format\n as @ref mongocrypt_setopt_kms_providers. If no keys are present in the\n BSON input, the KMS provider settings configured for the @ref mongocrypt_t\n at initialization are used.\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[in] kms_providers_definition A BSON document mapping the KMS provider\n names to credentials.\n\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status."]
     pub fn mongocrypt_ctx_provide_kms_providers(
         ctx: *mut mongocrypt_ctx_t,
         kms_providers_definition: *mut mongocrypt_binary_t,
@@ -518,5 +525,12 @@ extern "C" {
         ctx: *mut mongocrypt_ctx_t,
         query_type: *const ::std::os::raw::c_char,
         len: ::std::os::raw::c_int,
+    ) -> bool;
+}
+extern "C" {
+    #[doc = " Set options for explicit encryption with the \"rangePreview\" algorithm.\n NOTE: The RangePreview algorithm is experimental only. It is not intended for\n public use.\n\n @p opts is a BSON document of the form:\n {\n    \"min\": Optional<BSON value>,\n    \"max\": Optional<BSON value>,\n    \"sparsity\": Int64,\n    \"precision\": Optional<Int32>\n }\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[in] opts BSON.\n @pre @p ctx has not been initialized.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
+    pub fn mongocrypt_ctx_setopt_algorithm_range(
+        ctx: *mut mongocrypt_ctx_t,
+        opts: *mut mongocrypt_binary_t,
     ) -> bool;
 }
