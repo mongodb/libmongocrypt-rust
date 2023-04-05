@@ -5,4 +5,4 @@ Rust language bindings for the [libmongocrypt](https://github.com/mongodb/libmon
 
 # Requirements
 
-libmongocrypt 1.5.0 or higher must be installed; if it's not in a system-default location `MONGOCRYPT_LIB_DIR` can be set to specify a search location.
+libmongocrypt 1.8.0 or higher must be installed; if it's not in a system-default location `MONGOCRYPT_LIB_DIR` can be set to specify a search location.
