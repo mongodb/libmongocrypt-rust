@@ -110,6 +110,10 @@ extern "C" {
     pub fn mongocrypt_new() -> *mut mongocrypt_t;
 }
 extern "C" {
+    #[doc = " Enable/disable the use of FLE2v2 payload types for write.\n\n @param[in] crypt The @ref mongocrypt_t object.\n @param[in] enable Whether to enable use of FLE2v2 payloads.\n\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_status"]
+    pub fn mongocrypt_setopt_fle2v2(crypt: *mut mongocrypt_t, enable: bool) -> bool;
+}
+extern "C" {
     #[doc = " Set a handler on the @ref mongocrypt_t object to get called on every log\n message.\n\n @param[in] crypt The @ref mongocrypt_t object.\n @param[in] log_fn The log callback.\n @param[in] log_ctx A context passed as an argument to the log callback every\n invocation.\n @pre @ref mongocrypt_init has not been called on @p crypt.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
     pub fn mongocrypt_setopt_log_handler(
         crypt: *mut mongocrypt_t,

@@ -224,6 +224,16 @@ impl CryptBuilder {
         self
     }
 
+    /// Enable/disable the use of FLE2v2 payload types for write.
+    pub fn fle2v2(self, enable: bool) -> Result<Self> {
+        unsafe {
+            if !sys::mongocrypt_setopt_fle2v2(*self.inner.borrow(), enable) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self)
+    }
+
     pub fn build(mut self) -> Result<Crypt> {
         let _guard = CRYPT_LOCK.lock().unwrap();
 
