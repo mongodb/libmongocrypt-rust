@@ -17,5 +17,5 @@ links = "mongocrypt"
 [dependencies]
 
 [dev-dependencies]
-bson = "2.2.0"
+bson = "2.6.0"
 serde_json = "1.0.81"
