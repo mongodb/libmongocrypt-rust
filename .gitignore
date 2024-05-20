@@ -1,2 +1,4 @@
 semgrep
 mongo-rust-libmongocrypt.json.sarif
+.rustup
+.cargo
