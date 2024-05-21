@@ -31,6 +31,7 @@ pre:
       export PROJECT_DIRECTORY="$(pwd)"
       export MONGOCRYPT_LIB_DIR="$PROJECT_DIRECTORY/native/${libmongocrypt_os}/lib"
       export LD_LIBRARY_PATH="$MONGOCRYPT_LIB_DIR:$LD_LIBRARY_PATH"
+      export DRIVERS_TOOLS="$(pwd)/../drivers-tools"
 
       cat <<EOT > expansion.yml
       PREPARE_SHELL: |
@@ -39,6 +40,7 @@ pre:
         export PROJECT_DIRECTORY="$PROJECT_DIRECTORY"
         export MONGOCRYPT_LIB_DIR="$MONGOCRYPT_LIB_DIR"
         export LD_LIBRARY_PATH="$LD_LIBRARY_PATH"
+        export DRIVERS_TOOLS="$DRIVERS_TOOLS"
       EOT
       cat expansion.yml
 - command: expansions.update
@@ -109,6 +111,16 @@ tasks:
         ${PREPARE_SHELL}
         .evergreen/run-valgrind.sh
 
+- name: "semgrep"
+  commands:
+    - command: shell.exec
+      type: test
+      params:
+        working_dir: "src"
+        script: |
+          ${PREPARE_SHELL}
+          .evergreen/check-semgrep.sh
+
 buildvariants:
 - name: ubuntu
   display_name: "Ubuntu 18.04"
@@ -119,6 +131,7 @@ buildvariants:
   - name: ".compile"
   - name: ".test"
   - name: "valgrind"
+  - name: "semgrep"
 - name: macos
   display_name: "MacOS 10.14"
   run_on: macos-1014

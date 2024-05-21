@@ -1,0 +1,10 @@
+{
+    "serialNumber": "urn:uuid:8eec5dde-14e8-49de-bb5d-a7a9613098f5",
+    "version": 1,
+    "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+    "bomFormat": "CycloneDX",
+    "specVersion": "1.5",
+    "metadata": {
+        "timestamp": "2024-05-01T15:43:13Z"
+    }
+}

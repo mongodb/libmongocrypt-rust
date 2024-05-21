@@ -9,6 +9,10 @@ New versions of both the `mongocrypt-sys` and `mongocrypt` crates can be release
 
         VERSION=<version to be published> \
         TOKEN=<crates.io auth token> \
+        ARTIFACTORY_USERNAME=<artifactory username> \
+        ARTIFACTORY_PASSWORD=<artifactory password> \
+        GARASIGN_USERNAME=<garasign username> \
+        GARASIGN_PASSWORD=<garasign password> \
         CRATE=<mongocrypt | mongocrypt-sys> \
         ./publish.sh
 
