@@ -24,6 +24,6 @@ git checkout $CRATE-$VERSION
 
 cd $CRATE
 cargo publish --token $TOKEN "$@"
-$(dirname $0).evergreen/sign-release.sh
+$(dirname $0)/.evergreen/sign-release.sh
 
 git checkout main
