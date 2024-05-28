@@ -360,7 +360,8 @@ fn write_status(result: Result<()>, c_status: *mut sys::mongocrypt_status_t) -> 
                 c_status,
                 sys::mongocrypt_status_type_t_MONGOCRYPT_STATUS_ERROR_CLIENT,
                 0,
-                b"Failed to record error, see logs for details\0".as_ptr() as *const i8,
+                b"Failed to record error, see logs for details\0".as_ptr()
+                    as *const std::ffi::c_char,
                 -1,
             );
         }
