@@ -3,7 +3,7 @@ use std::{borrow::Borrow, ffi::CStr, path::Path, ptr, sync::Mutex};
 use bson::Document;
 #[cfg(test)]
 use convert::str_bytes_len;
-use convert::{doc_binary, path_bytes};
+use convert::{doc_binary, path_cstring};
 use ctx::CtxBuilder;
 use mongocrypt_sys as sys;
 
@@ -155,12 +155,11 @@ impl CryptBuilder {
     /// `set_crypt_shared_lib_path_override`, then paths
     /// appended here will have no effect.
     pub fn append_crypt_shared_lib_search_path(self, path: &Path) -> Result<Self> {
-        let mut tmp = path_bytes(path)?;
-        tmp.push(0);
+        let tmp = path_cstring(path)?;
         unsafe {
             sys::mongocrypt_setopt_append_crypt_shared_lib_search_path(
                 *self.inner.borrow(),
-                tmp.as_ptr() as *const i8,
+                tmp.as_ptr(),
             );
         }
         Ok(self)
@@ -184,12 +183,11 @@ impl CryptBuilder {
     /// initialize a valid crypt_shared library instance for the path specified, then
     /// the initialization will fail with an error.
     pub fn set_crypt_shared_lib_path_override(self, path: &Path) -> Result<Self> {
-        let mut tmp = path_bytes(path)?;
-        tmp.push(0);
+        let tmp = path_cstring(path)?;
         unsafe {
             sys::mongocrypt_setopt_set_crypt_shared_lib_path_override(
                 *self.inner.borrow(),
-                tmp.as_ptr() as *const i8,
+                tmp.as_ptr(),
             );
         }
         Ok(self)

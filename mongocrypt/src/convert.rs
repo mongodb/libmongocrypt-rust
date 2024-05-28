@@ -1,9 +1,11 @@
+use std::ffi::CString;
+
 use bson::{Document, RawDocument};
 use mongocrypt_sys as sys;
 
 use crate::{
     binary::BinaryBuf,
-    error::{self, Result},
+    error::{self, encoding, Result},
 };
 
 pub(crate) fn doc_binary(doc: &Document) -> Result<BinaryBuf> {
@@ -13,15 +15,20 @@ pub(crate) fn doc_binary(doc: &Document) -> Result<BinaryBuf> {
     Ok(BinaryBuf::new(bytes))
 }
 
+pub(crate) fn path_cstring(path: &std::path::Path) -> Result<CString> {
+    let bytes = path_bytes(path)?;
+    CString::new(bytes).map_err(|e| encoding!("could not convert path to cstring: {:?}", e))
+}
+
 #[cfg(unix)]
-pub(crate) fn path_bytes(path: &std::path::Path) -> Result<Vec<u8>> {
+fn path_bytes(path: &std::path::Path) -> Result<Vec<u8>> {
     use std::os::unix::prelude::OsStrExt;
 
     Ok(path.as_os_str().as_bytes().to_vec())
 }
 
 #[cfg(not(unix))]
-pub(crate) fn path_bytes(path: &std::path::Path) -> Result<Vec<u8>> {
+fn path_bytes(path: &std::path::Path) -> Result<Vec<u8>> {
     // This is correct for Windows because libmongocrypt internally converts
     // from utf8 to utf16 on that platform.
     use error::Error;
@@ -32,9 +39,9 @@ pub(crate) fn path_bytes(path: &std::path::Path) -> Result<Vec<u8>> {
     Ok(s.as_bytes().to_vec())
 }
 
-pub(crate) fn str_bytes_len(s: &str) -> Result<(*const i8, i32)> {
+pub(crate) fn str_bytes_len(s: &str) -> Result<(*const std::ffi::c_char, i32)> {
     Ok((
-        s.as_bytes().as_ptr() as *const i8,
+        s.as_bytes().as_ptr() as *const std::ffi::c_char,
         s.as_bytes().len().try_into()?,
     ))
 }
