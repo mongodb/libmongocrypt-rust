@@ -28,6 +28,11 @@ pub fn version() -> &'static str {
     c_version.to_str().unwrap()
 }
 
+/// Returns true if libmongocrypt was built with native crypto support.
+pub fn is_crypto_available() -> bool {
+    unsafe { sys::mongocrypt_is_crypto_available() }
+}
+
 pub struct CryptBuilder {
     inner: OwnedPtr<sys::mongocrypt_t>,
     cleanup: Vec<Box<dyn std::any::Any>>,
@@ -210,6 +215,18 @@ impl CryptBuilder {
         self
     }
 
+    /// Opt-into handling the MONGOCRYPT_CTX_NEED_MONGO_COLLINFO_WITH_DB state.
+    ///
+    /// A context enters the MONGOCRYPT_CTX_NEED_MONGO_COLLINFO_WITH_DB state when
+    /// processing a `bulkWrite` command. The target database of the `bulkWrite` may differ from the command database
+    /// ("admin").
+    pub fn use_need_mongo_collinfo_with_db_state(self) -> Self {
+        unsafe {
+            sys::mongocrypt_setopt_use_need_mongo_collinfo_with_db_state(*self.inner.borrow());
+        }
+        self
+    }
+
     /// Opt-into skipping query analysis.
     ///
     /// If opted in:
@@ -220,6 +237,15 @@ impl CryptBuilder {
             sys::mongocrypt_setopt_bypass_query_analysis(*self.inner.borrow());
         }
         self
+    }
+
+    /// Opt-into use of Queryable Encryption Range V2 protocol.
+    pub fn use_range_v2(self) -> Result<Self> {
+        let ok = unsafe { sys::mongocrypt_setopt_use_range_v2(*self.inner.borrow()) };
+        if !ok {
+            return Err(self.status().as_error());
+        }
+        Ok(self)
     }
 
     pub fn build(mut self) -> Result<Crypt> {
