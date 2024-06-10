@@ -234,7 +234,7 @@ impl CtxBuilder {
         Ok(self)
     }
 
-    /// Set options for explicit encryption with the "range" algorithm.
+    /// Set options for explicit encryption with [`Algorithm::Range`].
     ///
     /// `options` is a document of the form:
     /// {
@@ -244,7 +244,7 @@ impl CtxBuilder {
     ///    "precision": Optional<Int32>,
     ///    "trimFactor": Optional<Int32>
     /// }
-    pub fn range_options(self, options: Document) -> Result<Self> {
+    pub fn algorithm_range(self, options: Document) -> Result<Self> {
         let mut bin = doc_binary(&options)?;
         unsafe {
             if !sys::mongocrypt_ctx_setopt_algorithm_range(*self.inner.borrow(), *bin.native()) {
@@ -337,7 +337,7 @@ impl CtxBuilder {
     /// - [CtxBuilder::index_key_id]
     /// - [CtxBuilder::contention_factor]
     /// - [CtxBuilder::query_type]
-    /// - [CtxBuilder::algorithm_range]
+    /// - [CtxBuilder::range_options]
     ///
     /// An error is returned if FLE 1 and Queryable Encryption incompatible options
     /// are set.
@@ -402,23 +402,25 @@ impl CtxBuilder {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[non_exhaustive]
 pub enum Algorithm {
-    AeadAes256CbcHmacSha512Deterministic,
-    AeadAes256CbcHmacSha512Random,
+    Deterministic,
+    Random,
     Indexed,
     Unindexed,
+    #[deprecated]
     RangePreview,
+    Range,
 }
 
 impl Algorithm {
     fn c_str(&self) -> &'static CStr {
         let bytes: &[u8] = match self {
-            Self::AeadAes256CbcHmacSha512Deterministic => {
-                b"AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic\0"
-            }
-            Self::AeadAes256CbcHmacSha512Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
+            Self::Deterministic => b"AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic\0",
+            Self::Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
             Self::Indexed => b"Indexed\0",
             Self::Unindexed => b"Unindexed\0",
+            #[allow(deprecated)]
             Self::RangePreview => b"RangePreview\0",
+            Self::Range => b"Range\0",
         };
         unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
     }

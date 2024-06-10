@@ -65,7 +65,7 @@ fn ctx_setopts() -> Result<()> {
         .key_id(&[0; 16])?
         .key_alt_name("test")?
         .key_material(&[0; 96])?
-        .algorithm(Algorithm::AeadAes256CbcHmacSha512Deterministic)?
+        .algorithm(Algorithm::Deterministic)?
         .masterkey_aws("somewhere", "something")?
         .masterkey_aws_endpoint("example.com")?
         .contention_factor(10)?
