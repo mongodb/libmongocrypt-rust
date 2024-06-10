@@ -735,35 +735,79 @@ impl<'scope> KmsCtx<'scope> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum KmsProvider {
-    Aws,
-    Azure,
-    Gcp,
-    Kmip,
-    Local,
+    Aws { name: Option<String> },
+    Azure { name: Option<String> },
+    Gcp { name: Option<String> },
+    Kmip { name: Option<String> },
+    Local { name: Option<String> },
     Other(String),
 }
 
 impl KmsProvider {
-    pub fn name(&self) -> &str {
-        match self {
-            KmsProvider::Aws => "aws",
-            KmsProvider::Azure => "azure",
-            KmsProvider::Gcp => "gcp",
-            KmsProvider::Kmip => "kmip",
-            KmsProvider::Local => "local",
-            KmsProvider::Other(s) => s,
+    pub fn aws() -> Self {
+        Self::Aws { name: None }
+    }
+
+    pub fn azure() -> Self {
+        Self::Azure { name: None }
+    }
+
+    pub fn gcp() -> Self {
+        Self::Gcp { name: None }
+    }
+
+    pub fn kmip() -> Self {
+        Self::Kmip { name: None }
+    }
+
+    pub fn local() -> Self {
+        Self::Local { name: None }
+    }
+
+    pub fn name(&self) -> String {
+        let (identifier, name) = match self {
+            KmsProvider::Aws { name } => ("aws", name),
+            KmsProvider::Azure { name } => ("azure", name),
+            KmsProvider::Gcp { name } => ("gcp", name),
+            KmsProvider::Kmip { name } => ("kmip", name),
+            KmsProvider::Local { name } => ("local", name),
+            KmsProvider::Other(s) => (s.as_str(), &None),
+        };
+
+        let mut full_name = identifier.to_string();
+        if let Some(name) = name {
+            full_name.push(':');
+            full_name.push_str(name);
         }
+        full_name
     }
 
     pub fn from_name(name: &str) -> Self {
-        match name {
-            "aws" => KmsProvider::Aws,
-            "azure" => KmsProvider::Azure,
-            "gcp" => KmsProvider::Gcp,
-            "kmip" => KmsProvider::Kmip,
-            "local" => KmsProvider::Local,
-            s => KmsProvider::Other(s.to_string()),
+        let (provider_type, provider_name) = match name.split_once(':') {
+            Some((provider_type, provider_name)) => {
+                (provider_type, Some(provider_name.to_string()))
+            }
+            None => (name, None),
+        };
+        match provider_type {
+            "aws" => Self::Aws {
+                name: provider_name,
+            },
+            "azure" => Self::Azure {
+                name: provider_name,
+            },
+            "gcp" => Self::Gcp {
+                name: provider_name,
+            },
+            "kmip" => Self::Kmip {
+                name: provider_name,
+            },
+            "local" => Self::Local {
+                name: provider_name,
+            },
+            _ => Self::Other(name.to_string()),
         }
     }
 }
@@ -773,7 +817,7 @@ impl Serialize for KmsProvider {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(self.name())
+        serializer.serialize_str(&self.name())
     }
 }
 
