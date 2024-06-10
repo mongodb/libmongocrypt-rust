@@ -4,12 +4,53 @@ extern "C" {
     #[doc = " Returns the version string for libmongocrypt.\n\n @param[out] len  An optional length of the returned string. May be NULL.\n @returns a NULL terminated version string for libmongocrypt."]
     pub fn mongocrypt_version(len: *mut u32) -> *const ::std::os::raw::c_char;
 }
+extern "C" {
+    #[doc = " Returns true if libmongocrypt was built with native crypto support.\n\n If libmongocrypt was not built with native crypto support, setting crypto\n hooks is required.\n\n @returns True if libmongocrypt was built with native crypto support."]
+    pub fn mongocrypt_is_crypto_available() -> bool;
+}
+#[doc = " A non-owning view of a byte buffer.\n\n When constructing a mongocrypt_binary_t it is the responsibility of the\n caller to maintain the lifetime of the viewed data. However, all public\n functions that take a mongocrypt_binary_t as an argument will make a copy of\n the viewed data. For example, the following is valid:\n\n @code{.c}\n mongocrypt_binary_t bin = mongocrypt_binary_new_from_data(mydata, mylen);\n assert (mongocrypt_setopt_kms_provider_local (crypt), bin);\n // The viewed data of bin has been copied. Ok to free the view and the data.\n mongocrypt_binary_destroy (bin);\n my_free_fn (mydata);\n @endcode\n\n Functions with a mongocrypt_binary_t* out guarantee the lifetime of the\n viewed data to live as long as the parent object. For example, @ref\n mongocrypt_ctx_mongo_op guarantees that the viewed data of\n mongocrypt_binary_t is valid until the parent ctx is destroyed with @ref\n mongocrypt_ctx_destroy.\n\n The `mongocrypt_binary_t` struct definition is public.\n Consumers may rely on the struct layout."]
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
 pub struct _mongocrypt_binary_t {
-    _unused: [u8; 0],
+    pub data: *mut ::std::os::raw::c_void,
+    pub len: u32,
 }
-#[doc = " A non-owning view of a byte buffer.\n\n When constructing a mongocrypt_binary_t it is the responsibility of the\n caller to maintain the lifetime of the viewed data. However, all public\n functions that take a mongocrypt_binary_t as an argument will make a copy of\n the viewed data. For example, the following is valid:\n\n @code{.c}\n mongocrypt_binary_t bin = mongocrypt_binary_new_from_data(mydata, mylen);\n assert (mongocrypt_setopt_kms_provider_local (crypt), bin);\n // The viewed data of bin has been copied. Ok to free the view and the data.\n mongocrypt_binary_destroy (bin);\n my_free_fn (mydata);\n @endcode\n\n Functions with a mongocrypt_binary_t* out guarantee the lifetime of the\n viewed data to live as long as the parent object. For example, @ref\n mongocrypt_ctx_mongo_op guarantees that the viewed data of\n mongocrypt_binary_t is valid until the parent ctx is destroyed with @ref\n mongocrypt_ctx_destroy."]
+#[test]
+fn bindgen_test_layout__mongocrypt_binary_t() {
+    const UNINIT: ::std::mem::MaybeUninit<_mongocrypt_binary_t> = ::std::mem::MaybeUninit::uninit();
+    let ptr = UNINIT.as_ptr();
+    assert_eq!(
+        ::std::mem::size_of::<_mongocrypt_binary_t>(),
+        16usize,
+        concat!("Size of: ", stringify!(_mongocrypt_binary_t))
+    );
+    assert_eq!(
+        ::std::mem::align_of::<_mongocrypt_binary_t>(),
+        8usize,
+        concat!("Alignment of ", stringify!(_mongocrypt_binary_t))
+    );
+    assert_eq!(
+        unsafe { ::std::ptr::addr_of!((*ptr).data) as usize - ptr as usize },
+        0usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(_mongocrypt_binary_t),
+            "::",
+            stringify!(data)
+        )
+    );
+    assert_eq!(
+        unsafe { ::std::ptr::addr_of!((*ptr).len) as usize - ptr as usize },
+        8usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(_mongocrypt_binary_t),
+            "::",
+            stringify!(len)
+        )
+    );
+}
+#[doc = " A non-owning view of a byte buffer.\n\n When constructing a mongocrypt_binary_t it is the responsibility of the\n caller to maintain the lifetime of the viewed data. However, all public\n functions that take a mongocrypt_binary_t as an argument will make a copy of\n the viewed data. For example, the following is valid:\n\n @code{.c}\n mongocrypt_binary_t bin = mongocrypt_binary_new_from_data(mydata, mylen);\n assert (mongocrypt_setopt_kms_provider_local (crypt), bin);\n // The viewed data of bin has been copied. Ok to free the view and the data.\n mongocrypt_binary_destroy (bin);\n my_free_fn (mydata);\n @endcode\n\n Functions with a mongocrypt_binary_t* out guarantee the lifetime of the\n viewed data to live as long as the parent object. For example, @ref\n mongocrypt_ctx_mongo_op guarantees that the viewed data of\n mongocrypt_binary_t is valid until the parent ctx is destroyed with @ref\n mongocrypt_ctx_destroy.\n\n The `mongocrypt_binary_t` struct definition is public.\n Consumers may rely on the struct layout."]
 pub type mongocrypt_binary_t = _mongocrypt_binary_t;
 extern "C" {
     #[doc = " Create a new non-owning view of a buffer (data + length).\n\n Use this to create a mongocrypt_binary_t used for output parameters.\n\n @returns A new mongocrypt_binary_t."]
@@ -174,6 +215,10 @@ extern "C" {
     pub fn mongocrypt_setopt_use_need_kms_credentials_state(crypt: *mut mongocrypt_t);
 }
 extern "C" {
+    #[doc = " @brief Opt-into handling the MONGOCRYPT_CTX_NEED_MONGO_COLLINFO_WITH_DB state.\n\n A context enters the MONGOCRYPT_CTX_NEED_MONGO_COLLINFO_WITH_DB state when\n processing a `bulkWrite` command. The target database of the `bulkWrite` may differ from the command database\n (\"admin\").\n\n @param[in] crypt The @ref mongocrypt_t object to update"]
+    pub fn mongocrypt_setopt_use_need_mongo_collinfo_with_db_state(crypt: *mut mongocrypt_t);
+}
+extern "C" {
     #[doc = " Initialize new @ref mongocrypt_t object.\n\n Set options before using @ref mongocrypt_setopt_kms_provider_local, @ref\n mongocrypt_setopt_kms_provider_aws, or @ref mongocrypt_setopt_log_handler.\n\n @param[in] crypt The @ref mongocrypt_t object.\n\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status Failure may occur if previously\n set\n options are invalid."]
     pub fn mongocrypt_init(crypt: *mut mongocrypt_t) -> bool;
 }
@@ -293,7 +338,7 @@ extern "C" {
     ) -> bool;
 }
 extern "C" {
-    #[doc = " Explicit helper method to encrypt a Match Expression or Aggregate Expression.\n Contexts created for explicit encryption will not go through mongocryptd.\n Requires query_type to be \"rangePreview\".\n NOTE: The RangePreview algorithm is experimental only. It is not intended for\n public use.\n\n This method expects the passed-in BSON to be of the form:\n { \"v\" : FLE2RangeFindDriverSpec }\n\n FLE2RangeFindDriverSpec is a BSON document with one of these forms:\n\n 1. A Match Expression of this form:\n    {$and: [{<field>: {<op>: <value1>, {<field>: {<op>: <value2> }}]}\n 2. An Aggregate Expression of this form:\n    {$and: [{<op>: [<fieldpath>, <value1>]}, {<op>: [<fieldpath>, <value2>]}]\n\n <op> may be $lt, $lte, $gt, or $gte.\n\n The value of \"v\" is expected to be the BSON value passed to a driver\n ClientEncryption.encryptExpression helper.\n\n Associated options for FLE 1:\n - @ref mongocrypt_ctx_setopt_key_id\n - @ref mongocrypt_ctx_setopt_key_alt_name\n - @ref mongocrypt_ctx_setopt_algorithm\n\n Associated options for Queryable Encryption:\n - @ref mongocrypt_ctx_setopt_key_id\n - @ref mongocrypt_ctx_setopt_index_key_id\n - @ref mongocrypt_ctx_setopt_contention_factor\n - @ref mongocrypt_ctx_setopt_query_type\n - @ref mongocrypt_ctx_setopt_algorithm_range\n\n An error is returned if FLE 1 and Queryable Encryption incompatible options\n are set.\n\n @param[in] ctx A @ref mongocrypt_ctx_t.\n @param[in] msg A @ref mongocrypt_binary_t the plaintext BSON value. The\n viewed data is copied. It is valid to destroy @p msg with @ref\n mongocrypt_binary_destroy immediately after.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
+    #[doc = " Explicit helper method to encrypt a Match Expression or Aggregate Expression.\n Contexts created for explicit encryption will not go through mongocryptd.\n Requires query_type to be \"range\" or \"rangePreview\".\n\n NOTE: \"rangePreview\" is experimental only and is not intended for public use.\n API for \"rangePreview\" may be removed in a future release.\n\n This method expects the passed-in BSON to be of the form:\n { \"v\" : FLE2RangeFindDriverSpec }\n\n FLE2RangeFindDriverSpec is a BSON document with one of these forms:\n\n 1. A Match Expression of this form:\n    {$and: [{<field>: {<op>: <value1>, {<field>: {<op>: <value2> }}]}\n 2. An Aggregate Expression of this form:\n    {$and: [{<op>: [<fieldpath>, <value1>]}, {<op>: [<fieldpath>, <value2>]}]\n\n <op> may be $lt, $lte, $gt, or $gte.\n\n The value of \"v\" is expected to be the BSON value passed to a driver\n ClientEncryption.encryptExpression helper.\n\n Associated options for FLE 1:\n - @ref mongocrypt_ctx_setopt_key_id\n - @ref mongocrypt_ctx_setopt_key_alt_name\n - @ref mongocrypt_ctx_setopt_algorithm\n\n Associated options for Queryable Encryption:\n - @ref mongocrypt_ctx_setopt_key_id\n - @ref mongocrypt_ctx_setopt_index_key_id\n - @ref mongocrypt_ctx_setopt_contention_factor\n - @ref mongocrypt_ctx_setopt_query_type\n - @ref mongocrypt_ctx_setopt_algorithm_range\n\n An error is returned if FLE 1 and Queryable Encryption incompatible options\n are set.\n\n @param[in] ctx A @ref mongocrypt_ctx_t.\n @param[in] msg A @ref mongocrypt_binary_t the plaintext BSON value. The\n viewed data is copied. It is valid to destroy @p msg with @ref\n mongocrypt_binary_destroy immediately after.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
     pub fn mongocrypt_ctx_explicit_encrypt_expression_init(
         ctx: *mut mongocrypt_ctx_t,
         msg: *mut mongocrypt_binary_t,
@@ -322,6 +367,8 @@ extern "C" {
 }
 pub const mongocrypt_ctx_state_t_MONGOCRYPT_CTX_ERROR: mongocrypt_ctx_state_t = 0;
 pub const mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO: mongocrypt_ctx_state_t = 1;
+pub const mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO_WITH_DB:
+    mongocrypt_ctx_state_t = 8;
 pub const mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_MARKINGS: mongocrypt_ctx_state_t = 2;
 pub const mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_KEYS: mongocrypt_ctx_state_t = 3;
 pub const mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_KMS: mongocrypt_ctx_state_t = 4;
@@ -335,14 +382,18 @@ extern "C" {
     pub fn mongocrypt_ctx_state(ctx: *mut mongocrypt_ctx_t) -> mongocrypt_ctx_state_t;
 }
 extern "C" {
-    #[doc = " Get BSON necessary to run the mongo operation when mongocrypt_ctx_t\n is in MONGOCRYPT_CTX_NEED_MONGO_* states.\n\n @p op_bson is a BSON document to be used for the operation.\n - For MONGOCRYPT_CTX_NEED_MONGO_COLLINFO it is a listCollections filter.\n - For MONGOCRYPT_CTX_NEED_MONGO_KEYS it is a find filter.\n - For MONGOCRYPT_CTX_NEED_MONGO_MARKINGS it is a command to send to\n mongocryptd.\n\n The lifetime of @p op_bson is tied to the lifetime of @p ctx. It is valid\n until @ref mongocrypt_ctx_destroy is called.\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[out] op_bson A BSON document for the MongoDB operation. The data\n viewed by @p op_bson is guaranteed to be valid until @p ctx is destroyed with\n @ref mongocrypt_ctx_destroy.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
+    #[doc = " Get BSON necessary to run the mongo operation when mongocrypt_ctx_t\n is in MONGOCRYPT_CTX_NEED_MONGO_* states.\n\n @p op_bson is a BSON document to be used for the operation.\n - For MONGOCRYPT_CTX_NEED_MONGO_COLLINFO(_WITH_DB) it is a listCollections filter.\n - For MONGOCRYPT_CTX_NEED_MONGO_KEYS it is a find filter.\n - For MONGOCRYPT_CTX_NEED_MONGO_MARKINGS it is a command to send to\n mongocryptd.\n\n The lifetime of @p op_bson is tied to the lifetime of @p ctx. It is valid\n until @ref mongocrypt_ctx_destroy is called.\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[out] op_bson A BSON document for the MongoDB operation. The data\n viewed by @p op_bson is guaranteed to be valid until @p ctx is destroyed with\n @ref mongocrypt_ctx_destroy.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
     pub fn mongocrypt_ctx_mongo_op(
         ctx: *mut mongocrypt_ctx_t,
         op_bson: *mut mongocrypt_binary_t,
     ) -> bool;
 }
 extern "C" {
-    #[doc = " Feed a BSON reply or result when mongocrypt_ctx_t is in\n MONGOCRYPT_CTX_NEED_MONGO_* states. This may be called multiple times\n depending on the operation.\n\n reply is a BSON document result being fed back for this operation.\n - For MONGOCRYPT_CTX_NEED_MONGO_COLLINFO it is a doc from a listCollections\n cursor. (Note, if listCollections returned no result, do not call this\n function.)\n - For MONGOCRYPT_CTX_NEED_MONGO_KEYS it is a doc from a find cursor.\n   (Note, if find returned no results, do not call this function. reply must\n not\n   be NULL.)\n - For MONGOCRYPT_CTX_NEED_MONGO_MARKINGS it is a reply from mongocryptd.\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[in] reply A BSON document for the MongoDB operation. The viewed data\n is copied. It is valid to destroy @p reply with @ref\n mongocrypt_binary_destroy immediately after.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
+    #[doc = " Get the database to run the mongo operation.\n\n Only applies when mongocrypt_ctx_t is in the state:\n MONGOCRYPT_CTX_NEED_MONGO_COLLINFO_WITH_DB.\n\n The lifetime of the returned string is tied to the lifetime of @p ctx. It is\n valid until @ref mongocrypt_ctx_destroy is called.\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @returns A string or NULL. If NULL, an error status is set. Retrieve it with\n @ref mongocrypt_ctx_status"]
+    pub fn mongocrypt_ctx_mongo_db(ctx: *mut mongocrypt_ctx_t) -> *const ::std::os::raw::c_char;
+}
+extern "C" {
+    #[doc = " Feed a BSON reply or result when mongocrypt_ctx_t is in\n MONGOCRYPT_CTX_NEED_MONGO_* states. This may be called multiple times\n depending on the operation.\n\n reply is a BSON document result being fed back for this operation.\n - For MONGOCRYPT_CTX_NEED_MONGO_COLLINFO(_WITH_DB) it is a doc from a listCollections\n cursor. (Note, if listCollections returned no result, do not call this\n function.)\n - For MONGOCRYPT_CTX_NEED_MONGO_KEYS it is a doc from a find cursor.\n   (Note, if find returned no results, do not call this function. reply must\n not\n   be NULL.)\n - For MONGOCRYPT_CTX_NEED_MONGO_MARKINGS it is a reply from mongocryptd.\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[in] reply A BSON document for the MongoDB operation. The viewed data\n is copied. It is valid to destroy @p reply with @ref\n mongocrypt_binary_destroy immediately after.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
     pub fn mongocrypt_ctx_mongo_feed(
         ctx: *mut mongocrypt_ctx_t,
         reply: *mut mongocrypt_binary_t,
@@ -477,7 +528,7 @@ extern "C" {
     ) -> bool;
 }
 extern "C" {
-    #[doc = " Set a crypto hook for the AES256-CTR operations.\n\n @param[in] crypt The @ref mongocrypt_t object.\n @param[in] aes_256_ctr_encrypt The crypto callback function for encrypt\n operation.\n @param[in] aes_256_ctr_decrypt The crypto callback function for decrypt\n operation.\n @param[in] ctx A context passed as an argument to the crypto callback\n every invocation.\n @pre @ref mongocrypt_init has not been called on @p crypt.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_status\n"]
+    #[doc = " Set a crypto hook for the AES256-CTR operations.\n\n @param[in] crypt The @ref mongocrypt_t object.\n @param[in] aes_256_ctr_encrypt The crypto callback function for encrypt\n operation.\n @param[in] aes_256_ctr_decrypt The crypto callback function for decrypt\n operation.\n @param[in] ctx Unused.\n @pre @ref mongocrypt_init has not been called on @p crypt.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_status\n"]
     pub fn mongocrypt_setopt_aes_256_ctr(
         crypt: *mut mongocrypt_t,
         aes_256_ctr_encrypt: mongocrypt_crypto_fn,
@@ -486,7 +537,7 @@ extern "C" {
     ) -> bool;
 }
 extern "C" {
-    #[doc = " Set an AES256-ECB crypto hook for the AES256-CTR operations. If CTR hook was\n configured using @ref mongocrypt_setopt_aes_256_ctr, ECB hook will be\n ignored.\n\n @param[in] crypt The @ref mongocrypt_t object.\n @param[in] aes_256_ecb_encrypt The crypto callback function for encrypt\n operation.\n @param[in] ctx A context passed as an argument to the crypto callback\n every invocation.\n @pre @ref mongocrypt_init has not been called on @p crypt.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_status\n"]
+    #[doc = " Set an AES256-ECB crypto hook for the AES256-CTR operations. If CTR hook was\n configured using @ref mongocrypt_setopt_aes_256_ctr, ECB hook will be\n ignored.\n\n @param[in] crypt The @ref mongocrypt_t object.\n @param[in] aes_256_ecb_encrypt The crypto callback function for encrypt\n operation.\n @param[in] ctx Unused.\n @pre @ref mongocrypt_init has not been called on @p crypt.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_status\n"]
     pub fn mongocrypt_setopt_aes_256_ecb(
         crypt: *mut mongocrypt_t,
         aes_256_ecb_encrypt: mongocrypt_crypto_fn,
@@ -504,6 +555,10 @@ extern "C" {
 extern "C" {
     #[doc = " @brief Opt-into skipping query analysis.\n\n If opted in:\n - The crypt_shared library will not attempt to be loaded.\n - A mongocrypt_ctx_t will never enter the MONGOCRYPT_CTX_NEED_MARKINGS state.\n\n @param[in] crypt The @ref mongocrypt_t object to update"]
     pub fn mongocrypt_setopt_bypass_query_analysis(crypt: *mut mongocrypt_t);
+}
+extern "C" {
+    #[doc = " @brief Opt-into use of Queryable Encryption Range V2 protocol.\n\n @param[in] crypt The @ref mongocrypt_t object.\n\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_status"]
+    pub fn mongocrypt_setopt_use_range_v2(crypt: *mut mongocrypt_t) -> bool;
 }
 extern "C" {
     #[doc = " Set the contention factor used for explicit encryption.\n The contention factor is only used for indexed Queryable Encryption.\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[in] contention_factor\n @pre @p ctx has not been initialized.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status."]
@@ -528,7 +583,7 @@ extern "C" {
     ) -> bool;
 }
 extern "C" {
-    #[doc = " Set options for explicit encryption with the \"rangePreview\" algorithm.\n NOTE: The RangePreview algorithm is experimental only. It is not intended for\n public use.\n\n @p opts is a BSON document of the form:\n {\n    \"min\": Optional<BSON value>,\n    \"max\": Optional<BSON value>,\n    \"sparsity\": Int64,\n    \"precision\": Optional<Int32>\n }\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[in] opts BSON.\n @pre @p ctx has not been initialized.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
+    #[doc = " Set options for explicit encryption with the \"range\" algorithm.\n\n @p opts is a BSON document of the form:\n {\n    \"min\": Optional<BSON value>,\n    \"max\": Optional<BSON value>,\n    \"sparsity\": Int64,\n    \"precision\": Optional<Int32>,\n    \"trimFactor\": Optional<Int32>\n }\n\n @param[in] ctx The @ref mongocrypt_ctx_t object.\n @param[in] opts BSON.\n @pre @p ctx has not been initialized.\n @returns A boolean indicating success. If false, an error status is set.\n Retrieve it with @ref mongocrypt_ctx_status"]
     pub fn mongocrypt_ctx_setopt_algorithm_range(
         ctx: *mut mongocrypt_ctx_t,
         opts: *mut mongocrypt_binary_t,

@@ -234,8 +234,17 @@ impl CtxBuilder {
         Ok(self)
     }
 
-    /// Set the range options.
-    pub fn range_options(self, options: Document) -> Result<Self> {
+    /// Set options for explicit encryption with [`Algorithm::Range`].
+    ///
+    /// `options` is a document of the form:
+    /// {
+    ///    "min": Optional<BSON value>,
+    ///    "max": Optional<BSON value>,
+    ///    "sparsity": Int64,
+    ///    "precision": Optional<Int32>,
+    ///    "trimFactor": Optional<Int32>
+    /// }
+    pub fn algorithm_range(self, options: Document) -> Result<Self> {
         let mut bin = doc_binary(&options)?;
         unsafe {
             if !sys::mongocrypt_ctx_setopt_algorithm_range(*self.inner.borrow(), *bin.native()) {
@@ -299,16 +308,39 @@ impl CtxBuilder {
         Ok(self.into_ctx())
     }
 
-    /// Explicit helper method to encrypt an expression. Contexts
-    /// created for explicit encryption will not go through mongocryptd.
+    /// Explicit helper method to encrypt a Match Expression or Aggregate Expression.
+    /// Contexts created for explicit encryption will not go through mongocryptd.
+    /// Requires query_type to be "range" or "rangePreview".
     ///
-    /// To specify a key_id, algorithm, or iv to use, please use the
-    /// corresponding methods before calling this.
+    /// NOTE: "rangePreview" is experimental only and is not intended for public use.
+    /// API for "rangePreview" may be removed in a future release.
+    ///
+    /// This method expects the passed-in BSON to be one of these forms:
+    ///
+    /// 1. A Match Expression of this form:
+    ///    {$and: [{<field>: {<op>: <value1>, {<field>: {<op>: <value2> }}]}
+    /// 2. An Aggregate Expression of this form:
+    ///    {$and: [{<op>: [<fieldpath>, <value1>]}, {<op>: [<fieldpath>, <value2>]}]
+    ///
+    /// <op> may be $lt, $lte, $gt, or $gte.
+    ///
+    /// The value of "v" is expected to be the BSON value passed to a driver
+    /// ClientEncryption.encryptExpression helper.
+    ///
+    /// Associated options for FLE 1:
+    /// - [CtxBuilder::key_id]
+    /// - [CtxBuilder::key_alt_name]
+    /// - [CtxBuilder::algorithm]
+    ///
+    /// Associated options for Queryable Encryption:
+    /// - [CtxBuilder::key_id]
+    /// - [CtxBuilder::index_key_id]
+    /// - [CtxBuilder::contention_factor]
+    /// - [CtxBuilder::query_type]
+    /// - [CtxBuilder::range_options]
     ///
     /// An error is returned if FLE 1 and Queryable Encryption incompatible options
     /// are set.
-    ///
-    /// * `value` - the expression to encrypt.
     pub fn build_explicit_encrypt_expression(self, value: bson::RawDocumentBuf) -> Result<Ctx> {
         let mut bin: BinaryBuf = rawdoc! { "v": value }.into();
         unsafe {
@@ -370,23 +402,25 @@ impl CtxBuilder {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 #[non_exhaustive]
 pub enum Algorithm {
-    AeadAes256CbcHmacSha512Deterministic,
-    AeadAes256CbcHmacSha512Random,
+    Deterministic,
+    Random,
     Indexed,
     Unindexed,
+    #[deprecated]
     RangePreview,
+    Range,
 }
 
 impl Algorithm {
     fn c_str(&self) -> &'static CStr {
         let bytes: &[u8] = match self {
-            Self::AeadAes256CbcHmacSha512Deterministic => {
-                b"AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic\0"
-            }
-            Self::AeadAes256CbcHmacSha512Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
+            Self::Deterministic => b"AEAD_AES_256_CBC_HMAC_SHA_512-Deterministic\0",
+            Self::Random => b"AEAD_AES_256_CBC_HMAC_SHA_512-Random\0",
             Self::Indexed => b"Indexed\0",
             Self::Unindexed => b"Unindexed\0",
+            #[allow(deprecated)]
             Self::RangePreview => b"RangePreview\0",
+            Self::Range => b"Range\0",
         };
         unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
     }
@@ -419,7 +453,7 @@ impl Ctx {
     /// Get BSON necessary to run the mongo operation when in `State::NeedMongo*` states.
     ///
     /// The returned value:
-    /// * for `State::NeedMongoCollinfo` it is a listCollections filter.
+    /// * for `State::NeedMongoCollinfo[WithDb]`it is a listCollections filter.
     /// * for `State::NeedMongoKeys` it is a find filter.
     /// * for `State::NeedMongoMarkings` it is a command to send to mongocryptd.
     pub fn mongo_op(&self) -> Result<&RawDocument> {
@@ -438,12 +472,25 @@ impl Ctx {
         rawdoc_view(op_bytes)
     }
 
+    /// Get the database to run the mongo operation.
+    ///
+    /// Only applies for [`State::NeedMongoCollinfoWithDb`].
+    pub fn mongo_db(&self) -> Result<&str> {
+        let cptr = unsafe { sys::mongocrypt_ctx_mongo_db(*self.inner.borrow()) };
+        if cptr.is_null() {
+            return Err(self.status().as_error());
+        }
+        // Lifetime safety: the returned cstr is valid for the lifetime of the underlying `Ctx`.
+        let cstr = unsafe { CStr::from_ptr(cptr) };
+        Ok(cstr.to_str()?)
+    }
+
     /// Feed a BSON reply or result when this context is in
     /// `State::NeedMongo*` states. This may be called multiple times
     /// depending on the operation.
     ///
     /// `reply` is a BSON document result being fed back for this operation.
-    /// - For `State::NeedMongoCollinfo` it is a doc from a listCollections
+    /// - For `State::NeedMongoCollinfo[WithDb]` it is a doc from a listCollections
     /// cursor. (Note, if listCollections returned no result, do not call this
     /// function.)
     /// - For `State::NeedMongoKeys` it is a doc from a find cursor.
@@ -533,6 +580,7 @@ impl Ctx {
 #[non_exhaustive]
 pub enum State {
     NeedMongoCollinfo,
+    NeedMongoCollinfoWithDb,
     NeedMongoMarkings,
     NeedMongoKeys,
     NeedKms,
@@ -547,6 +595,9 @@ impl State {
         match state {
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO => {
                 Self::NeedMongoCollinfo
+            }
+            sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_COLLINFO_WITH_DB => {
+                Self::NeedMongoCollinfoWithDb
             }
             sys::mongocrypt_ctx_state_t_MONGOCRYPT_CTX_NEED_MONGO_MARKINGS => {
                 Self::NeedMongoMarkings

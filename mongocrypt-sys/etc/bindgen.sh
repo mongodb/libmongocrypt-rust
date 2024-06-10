@@ -16,8 +16,11 @@ fi
 
 cd $LIBMONGOCRYPT_DIR
 git checkout $LIBMONGOCRYPT_TAG
-mkdir -p cmake-build
-cmake -DENABLE_SHARED_BSON=ON . -Bcmake-build
+rm -rf cmake-build
+mkdir cmake-build
+cd cmake-build
+cmake ../
+cd ..
 bindgen src/mongocrypt.h \
     -o $BINDINGS_PATH \
     --allowlist-function 'mongocrypt_.*' \

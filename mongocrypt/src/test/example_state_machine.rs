@@ -147,7 +147,7 @@ fn explicit_encryption_decryption() -> Result<()> {
     let mut ctx = crypt
         .ctx_builder()
         .key_id(key_bytes)?
-        .algorithm(Algorithm::AeadAes256CbcHmacSha512Random)?
+        .algorithm(Algorithm::Random)?
         .build_explicit_encrypt(RawBson::String("hello".to_string()))?;
     let result = run_state_machine(&mut ctx)?;
 
