@@ -792,8 +792,8 @@ impl KmsProvider {
         }
     }
 
-    pub fn with_name(mut self, name: String) -> Self {
-        self.name = Some(name);
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = Some(name.into());
         self
     }
 
