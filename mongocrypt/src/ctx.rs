@@ -735,15 +735,14 @@ impl<'scope> KmsCtx<'scope> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[non_exhaustive]
 pub struct KmsProvider {
     /// The type of KMS provider to use.
-    provider_type: KmsProviderType,
+    pub provider_type: KmsProviderType,
 
     /// The name of the KMS provider. This value can be set in order to use multiple KMS providers
     /// of the same type in one KMS provider list. If set, a name must also be set for all other
     /// KMS providers of the same type in a list.
-    name: Option<String>,
+    pub name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
