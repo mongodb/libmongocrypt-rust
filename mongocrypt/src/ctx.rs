@@ -785,6 +785,13 @@ impl KmsProvider {
         }
     }
 
+    pub fn kmip() -> Self {
+        Self {
+            provider_type: KmsProviderType::Kmip,
+            name: None,
+        }
+    }
+
     pub fn other(other: impl Into<String>) -> Self {
         Self {
             provider_type: KmsProviderType::Other(other.into()),
