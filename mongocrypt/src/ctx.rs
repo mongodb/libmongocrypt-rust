@@ -756,16 +756,47 @@ pub enum KmsProviderType {
     Other(String),
 }
 
-impl From<KmsProviderType> for KmsProvider {
-    fn from(provider_type: KmsProviderType) -> Self {
-        KmsProvider {
-            provider_type,
+impl KmsProvider {
+    pub fn aws() -> Self {
+        Self {
+            provider_type: KmsProviderType::Aws,
+            name: None,
+        }
+    }
+
+    pub fn azure() -> Self {
+        Self {
+            provider_type: KmsProviderType::Azure,
+            name: None,
+        }
+    }
+
+    pub fn gcp() -> Self {
+        Self {
+            provider_type: KmsProviderType::Gcp,
+            name: None,
+        }
+    }
+
+    pub fn local() -> Self {
+        Self {
+            provider_type: KmsProviderType::Local,
             name: None
         }
     }
-}
 
-impl KmsProvider {
+    pub fn other(other: String) -> Self {
+        Self {
+            provider_type: KmsProviderType::Other(other),
+            name: None,
+        }
+    }
+
+    pub fn with_name(mut self, name: String) -> Self {
+        self.name = Some(name);
+        self
+    }
+
     pub fn name(&self) -> String {
         let mut full_name = match self.provider_type {
             KmsProviderType::Aws => "aws",
