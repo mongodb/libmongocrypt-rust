@@ -734,17 +734,16 @@ impl<'scope> KmsCtx<'scope> {
     }
 }
 
+/// A KMS provider. KMS providers can be constructed using the various constructors that correspond
+/// to each [`KmsProviderType`]. KMS providers also have an optional name that can be set using the
+/// [`with_name`](KmsProvider::with_name) method.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KmsProvider {
-    /// The type of KMS provider to use.
     provider_type: KmsProviderType,
-
-    /// The name of the KMS provider. This value can be set in order to use multiple KMS providers
-    /// of the same type in one KMS provider list. If set, a name must also be set for all other
-    /// KMS providers of the same type in a list.
     name: Option<String>,
 }
 
+/// The supported KMS provider types.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum KmsProviderType {
@@ -757,6 +756,7 @@ pub enum KmsProviderType {
 }
 
 impl KmsProvider {
+    /// Constructs an unnamed AWS KMS provider.
     pub fn aws() -> Self {
         Self {
             provider_type: KmsProviderType::Aws,
@@ -764,6 +764,7 @@ impl KmsProvider {
         }
     }
 
+    /// Constructs an unnamed Azure KMS provider.
     pub fn azure() -> Self {
         Self {
             provider_type: KmsProviderType::Azure,
@@ -771,6 +772,7 @@ impl KmsProvider {
         }
     }
 
+    /// Constructs an unnamed GCP KMS provider.
     pub fn gcp() -> Self {
         Self {
             provider_type: KmsProviderType::Gcp,
@@ -778,6 +780,7 @@ impl KmsProvider {
         }
     }
 
+    /// Constructs an unnamed local KMS provider.
     pub fn local() -> Self {
         Self {
             provider_type: KmsProviderType::Local,
@@ -785,6 +788,7 @@ impl KmsProvider {
         }
     }
 
+    /// Constructs an unnamed KMIP KMS provider.
     pub fn kmip() -> Self {
         Self {
             provider_type: KmsProviderType::Kmip,
@@ -792,6 +796,7 @@ impl KmsProvider {
         }
     }
 
+    /// Constructs an unnamed KMS provider with the given string.
     pub fn other(other: impl Into<String>) -> Self {
         Self {
             provider_type: KmsProviderType::Other(other.into()),
@@ -799,19 +804,24 @@ impl KmsProvider {
         }
     }
 
+    /// Sets the given name on this KMS provider. A name can be set to use multiple KMS providers
+    /// of the same type in one KMS provider list.
     pub fn with_name(mut self, name: impl Into<String>) -> Self {
         self.name = Some(name.into());
         self
     }
 
+    /// This KMS provider's type.
     pub fn provider_type(&self) -> &KmsProviderType {
         &self.provider_type
     }
 
+    /// The name for this KMS provider.
     pub fn name(&self) -> Option<&String> {
         self.name.as_ref()
     }
 
+    /// Returns the string representation of this KMS provider.
     pub fn as_string(&self) -> String {
         let mut full_name = match self.provider_type {
             KmsProviderType::Aws => "aws",
@@ -828,6 +838,8 @@ impl KmsProvider {
         full_name
     }
 
+    /// Constructs a KMS provider from the given string. The string must begin with the provider
+    /// type followed by an optional ":" and name, e.g. "aws" or "aws:name".
     pub fn from_string(name: &str) -> Self {
         let (provider_type, name) = match name.split_once(':') {
             Some((provider_type, name)) => {
