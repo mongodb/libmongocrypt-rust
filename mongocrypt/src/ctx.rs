@@ -730,19 +730,19 @@ impl<'scope> KmsCtx<'scope> {
             let ptr = sys::mongocrypt_kms_ctx_get_kms_provider(self.inner, ptr::null_mut());
             CStr::from_ptr(ptr).to_str()?
         };
-        Ok(KmsProvider::from_name(s))
+        Ok(KmsProvider::from_string(s))
     }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct KmsProvider {
     /// The type of KMS provider to use.
-    pub provider_type: KmsProviderType,
+    provider_type: KmsProviderType,
 
     /// The name of the KMS provider. This value can be set in order to use multiple KMS providers
     /// of the same type in one KMS provider list. If set, a name must also be set for all other
     /// KMS providers of the same type in a list.
-    pub name: Option<String>,
+    name: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -804,7 +804,15 @@ impl KmsProvider {
         self
     }
 
-    pub fn name(&self) -> String {
+    pub fn provider_type(&self) -> &KmsProviderType {
+        &self.provider_type
+    }
+
+    pub fn name(&self) -> Option<&String> {
+        self.name.as_ref()
+    }
+
+    pub fn as_string(&self) -> String {
         let mut full_name = match self.provider_type {
             KmsProviderType::Aws => "aws",
             KmsProviderType::Azure => "azure",
@@ -820,7 +828,7 @@ impl KmsProvider {
         full_name
     }
 
-    pub fn from_name(name: &str) -> Self {
+    pub fn from_string(name: &str) -> Self {
         let (provider_type, name) = match name.split_once(':') {
             Some((provider_type, name)) => {
                 (provider_type, Some(name.to_string()))
@@ -847,7 +855,7 @@ impl Serialize for KmsProvider {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_str(&self.name())
+        serializer.serialize_str(&self.as_string())
     }
 }
 
@@ -868,7 +876,7 @@ impl<'de> Deserialize<'de> for KmsProvider {
             where
                 E: serde::de::Error,
             {
-                Ok(KmsProvider::from_name(v))
+                Ok(KmsProvider::from_string(v))
             }
         }
         deserializer.deserialize_str(V)
