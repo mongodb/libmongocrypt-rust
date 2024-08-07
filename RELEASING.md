@@ -5,13 +5,16 @@ New versions of both the `mongocrypt-sys` and `mongocrypt` crates can be release
 1. When publishing the `mongocrypt` crate, push a change updating the `mongocrypt-sys` and `bson` dependencies to the most recent published versions.
 1. Create a tag combining the crate name and version to be published, e.g. `mongocrypt-sys-0.1`.  If pushing both crates, create two tags (they can point to the same commit).
 1. Push the tag(s) upstream.
-1. Run the publish script with the `VERSION`, `TOKEN`, and `CRATE` variables:
+1. Run the publish script:
 
+        CRATE=<mongocrypt | mongocrypt-sys> \
         VERSION=<version to be published> \
+        # The following should be retreived from the driver secrets:
         TOKEN=<crates.io auth token> \
         ARTIFACTORY_USERNAME=<artifactory username> \
         ARTIFACTORY_PASSWORD=<artifactory password> \
         GARASIGN_USERNAME=<garasign username> \
         GARASIGN_PASSWORD=<garasign password> \
-        CRATE=<mongocrypt | mongocrypt-sys> \
+        AWS_ACCESS_KEY_ID=<s3 upload aws key> \
+        AWS_SECRET_ACCESS_KEY=<s3 upload aws secret> \
         ./publish.sh

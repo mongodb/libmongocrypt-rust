@@ -24,6 +24,7 @@ git checkout $CRATE-$VERSION
 
 cd $CRATE
 cargo publish --token $TOKEN "$@"
-$(dirname $0)/.evergreen/sign-release.sh
+../.evergreen/sign-release.sh
+aws s3 cp $CRATE-$VERSION.sig s3://cdn-origin-rust-driver/rust-driver/
 
 git checkout main
