@@ -15,5 +15,3 @@ New versions of both the `mongocrypt-sys` and `mongocrypt` crates can be release
         GARASIGN_PASSWORD=<garasign password> \
         CRATE=<mongocrypt | mongocrypt-sys> \
         ./publish.sh
-
-1. If `mongocrypt` was published, push another change reverting the dependencies.
