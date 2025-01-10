@@ -248,6 +248,7 @@ impl CryptBuilder {
         Ok(self)
     }
 
+    /// Enable or disable KMS retry behavior.
     pub fn retry_kms(self, enable: bool) -> Result<Self> {
         unsafe {
             let ok = sys::mongocrypt_setopt_retry_kms(*self.inner.borrow(), enable);

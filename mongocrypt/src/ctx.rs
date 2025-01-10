@@ -516,15 +516,6 @@ impl Ctx {
         Ok(())
     }
 
-    pub fn kms_done(&mut self) -> Result<()> {
-        unsafe {
-            if !sys::mongocrypt_ctx_kms_done(*self.inner.borrow()) {
-                return Err(self.status().as_error());
-            }
-        }
-        Ok(())
-    }
-
     /// Create a scope guard that provides handles to pending KMS requests.
     pub fn kms_scope(&mut self) -> KmsScope {
         KmsScope { ctx: self }
@@ -711,12 +702,12 @@ impl<'scope> KmsCtx<'scope> {
         }
     }
 
-    /// How many microseconds to sleep before sending this request.
-    pub fn sleep(&self) -> i64 {
+    /// How many microseconds to sleep before sending a request.
+    pub fn sleep_micros(&self) -> i64 {
         unsafe { sys::mongocrypt_kms_ctx_usleep(self.inner) }
     }
 
-    /// Whether a failed request should be retried.
+    /// Whether a failed request can be retried.
     pub fn retry_failure(&self) -> bool {
         unsafe { sys::mongocrypt_kms_ctx_fail(self.inner) }
     }
