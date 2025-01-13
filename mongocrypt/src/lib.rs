@@ -259,6 +259,17 @@ impl CryptBuilder {
         Ok(self)
     }
 
+    /// Set the expiration time for the data encryption key cache. Defaults to 60 seconds if not set.
+    pub fn key_cache_expiration(self, expiration_ms: u64) -> Result<Self> {
+        unsafe {
+            let ok = sys::mongocrypt_setopt_key_expiration(*self.inner.borrow(), expiration_ms);
+            if !ok {
+                return Err(self.status().as_error())
+            }
+        }
+        Ok(self)
+    }
+
     pub fn build(mut self) -> Result<Crypt> {
         let _guard = CRYPT_LOCK.lock().unwrap();
 
