@@ -702,6 +702,16 @@ impl<'scope> KmsCtx<'scope> {
         }
     }
 
+    /// How many microseconds to sleep before sending a request.
+    pub fn sleep_micros(&self) -> i64 {
+        unsafe { sys::mongocrypt_kms_ctx_usleep(self.inner) }
+    }
+
+    /// Whether a failed request can be retried.
+    pub fn retry_failure(&self) -> bool {
+        unsafe { sys::mongocrypt_kms_ctx_fail(self.inner) }
+    }
+
     /// Indicates how many bytes to feed into `feed`.
     pub fn bytes_needed(&self) -> u32 {
         unsafe { sys::mongocrypt_kms_ctx_bytes_needed(self.inner) }
@@ -784,7 +794,7 @@ impl KmsProvider {
     pub fn local() -> Self {
         Self {
             provider_type: KmsProviderType::Local,
-            name: None
+            name: None,
         }
     }
 
@@ -830,7 +840,8 @@ impl KmsProvider {
             KmsProviderType::Local => "local",
             KmsProviderType::Kmip => "kmip",
             KmsProviderType::Other(ref other) => other,
-        }.to_string();
+        }
+        .to_string();
         if let Some(ref name) = self.name {
             full_name.push(':');
             full_name.push_str(name);
@@ -842,9 +853,7 @@ impl KmsProvider {
     /// type followed by an optional ":" and name, e.g. "aws" or "aws:name".
     pub fn from_string(name: &str) -> Self {
         let (provider_type, name) = match name.split_once(':') {
-            Some((provider_type, name)) => {
-                (provider_type, Some(name.to_string()))
-            }
+            Some((provider_type, name)) => (provider_type, Some(name.to_string())),
             None => (name, None),
         };
         let provider_type = match provider_type {
@@ -857,7 +866,7 @@ impl KmsProvider {
         };
         Self {
             provider_type,
-            name
+            name,
         }
     }
 }
