@@ -102,7 +102,6 @@ tasks:
       target_dir: mongocrypt
 
 - name: "valgrind"
-  tags: ["lint"]
   commands:
   - command: shell.exec
     type: test
@@ -148,6 +147,7 @@ buildvariants:
   tasks:
     # compilation on ubuntu is tested in the compile build variant
   - name: ".test"
+  - name: "valgrind"
 
 - name: macos
   display_name: "MacOS 10.14"
