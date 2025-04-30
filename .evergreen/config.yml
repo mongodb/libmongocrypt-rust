@@ -62,7 +62,7 @@ functions:
       script: |
         ${PREPARE_SHELL}
         TARGET_DIR=${target_dir} .evergreen/compile-only.sh
-  
+
   "run tests":
   - command: shell.exec
     type: test
@@ -112,6 +112,7 @@ tasks:
         .evergreen/run-valgrind.sh
 
 - name: "semgrep"
+  tags: ["lint"]
   commands:
     - command: shell.exec
       type: test
@@ -122,16 +123,32 @@ tasks:
           .evergreen/check-semgrep.sh
 
 buildvariants:
+- name: lint
+  display_name: "Lint"
+  run_on: ubuntu1804-test
+  expansions:
+    libmongocrypt_os: "ubuntu1804-64"
+  tasks:
+    - name: .lint
+
+- name: compile
+  display_name: "Compile"
+  run_on: ubuntu1804-test
+  expansions:
+    libmongocrypt_os: "ubuntu1804-64"
+  tasks:
+    - name: .compile
+
 - name: ubuntu
   display_name: "Ubuntu 18.04"
   run_on: ubuntu1804-test
   expansions:
     libmongocrypt_os: "ubuntu1804-64"
   tasks:
-  - name: ".compile"
+    # compilation on ubuntu is tested in the compile build variant
   - name: ".test"
   - name: "valgrind"
-  - name: "semgrep"
+
 - name: macos
   display_name: "MacOS 10.14"
   run_on: macos-1014
@@ -140,6 +157,7 @@ buildvariants:
   tasks:
   - name: ".sys"
   - name: ".compile"
+
 - name: windows
   display_name: "Windows (VS 2017)"
   run_on: windows-64-vs2017-test
