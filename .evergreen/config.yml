@@ -150,8 +150,8 @@ buildvariants:
   - name: "valgrind"
 
 - name: macos
-  display_name: "MacOS 10.14"
-  run_on: macos-1014
+  display_name: "MacOS 11"
+  run_on: macos-11
   expansions:
     libmongocrypt_os: "macos"
   tasks:
