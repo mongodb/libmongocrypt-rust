@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 
-use bson::RawDocumentBuf;
+use crate::bson::RawDocumentBuf;
 use mongocrypt_sys as sys;
 
 use crate::convert::binary_bytes;

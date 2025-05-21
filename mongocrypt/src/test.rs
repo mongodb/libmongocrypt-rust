@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use bson::doc;
+use crate::bson::doc;
 
 use crate::ctx::Algorithm;
 use crate::error::Result;
@@ -69,7 +69,7 @@ fn ctx_setopts() -> Result<()> {
         .masterkey_aws("somewhere", "something")?
         .masterkey_aws_endpoint("example.com")?
         .contention_factor(10)?
-        .index_key_id(&bson::Uuid::new())?
+        .index_key_id(&crate::bson::Uuid::new())?
         .query_type("equality")?;
 
     Ok(())

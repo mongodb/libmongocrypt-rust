@@ -1,6 +1,6 @@
 use std::{borrow::Borrow, ffi::CStr, marker::PhantomData, ptr};
 
-use bson::{rawdoc, Document, RawDocument};
+use crate::bson::{rawdoc, Document, RawDocument};
 use mongocrypt_sys as sys;
 use serde::{Deserialize, Serialize};
 
@@ -68,8 +68,8 @@ impl CtxBuilder {
     ///
     /// * `key_material` - The data encryption key to use.
     pub fn key_material(self, key_material: &[u8]) -> Result<Self> {
-        let bson_bin = bson::Binary {
-            subtype: bson::spec::BinarySubtype::Generic,
+        let bson_bin = crate::bson::Binary {
+            subtype: crate::bson::spec::BinarySubtype::Generic,
             bytes: key_material.to_vec(),
         };
         let mut bin: BinaryBuf = rawdoc! { "keyMaterial": bson_bin }.into();
@@ -212,7 +212,7 @@ impl CtxBuilder {
     /// If the index key id not set, the key id from `key_id` is used.
     ///
     /// * `key_id` - The _id (a UUID) of the data key to use from the key vault collection.
-    pub fn index_key_id(self, key_id: &bson::Uuid) -> Result<Self> {
+    pub fn index_key_id(self, key_id: &crate::bson::Uuid) -> Result<Self> {
         let bytes = key_id.bytes();
         let bin = BinaryRef::new(&bytes);
         unsafe {
@@ -298,7 +298,7 @@ impl CtxBuilder {
     /// are set.
     ///
     /// * `value` - the plaintext BSON value.
-    pub fn build_explicit_encrypt(self, value: bson::RawBson) -> Result<Ctx> {
+    pub fn build_explicit_encrypt(self, value: crate::bson::RawBson) -> Result<Ctx> {
         let mut bin: BinaryBuf = rawdoc! { "v": value }.into();
         unsafe {
             if !sys::mongocrypt_ctx_explicit_encrypt_init(*self.inner.borrow(), *bin.native()) {
@@ -341,7 +341,10 @@ impl CtxBuilder {
     ///
     /// An error is returned if FLE 1 and Queryable Encryption incompatible options
     /// are set.
-    pub fn build_explicit_encrypt_expression(self, value: bson::RawDocumentBuf) -> Result<Ctx> {
+    pub fn build_explicit_encrypt_expression(
+        self,
+        value: crate::bson::RawDocumentBuf,
+    ) -> Result<Ctx> {
         let mut bin: BinaryBuf = rawdoc! { "v": value }.into();
         unsafe {
             if !sys::mongocrypt_ctx_explicit_encrypt_expression_init(
@@ -371,8 +374,8 @@ impl CtxBuilder {
     ///
     /// * `msg` - the encrypted BSON.
     pub fn build_explicit_decrypt(self, msg: &[u8]) -> Result<Ctx> {
-        let bson_bin = bson::Binary {
-            subtype: bson::spec::BinarySubtype::Encrypted,
+        let bson_bin = crate::bson::Binary {
+            subtype: crate::bson::spec::BinarySubtype::Encrypted,
             bytes: msg.into(),
         };
         let mut bin: BinaryBuf = rawdoc! { "v": bson_bin }.into();
