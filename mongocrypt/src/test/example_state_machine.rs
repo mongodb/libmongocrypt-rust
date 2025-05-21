@@ -1,6 +1,6 @@
 use std::{fs::File, io::Read, path::Path};
 
-use bson::{Bson, Document, RawBson, RawDocument, RawDocumentBuf};
+use crate::bson::{Bson, Document, RawBson, RawDocument, RawDocumentBuf};
 
 use crate::{
     ctx::{Algorithm, Ctx, State},
@@ -141,7 +141,7 @@ fn explicit_encryption_decryption() -> Result<()> {
     // Encryption
     let key_doc = load_doc_from_json("../testdata/key-document.json");
     let key_bytes = match key_doc.get("_id").unwrap() {
-        Bson::Binary(bson::Binary { bytes, .. }) => bytes,
+        Bson::Binary(crate::bson::Binary { bytes, .. }) => bytes,
         _ => panic!("non-binary bson"),
     };
     let mut ctx = crypt

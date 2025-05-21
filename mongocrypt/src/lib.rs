@@ -21,6 +21,18 @@ pub use hooks::*;
 use native::OwnedPtr;
 use once_cell::sync::Lazy;
 
+#[cfg(all(feature = "bson-2", feature = "bson-3"))]
+compile_error!("Only one of the bson-2 and bson-3 features should be enabled.");
+
+#[cfg(not(any(feature = "bson-2", feature = "bson-3")))]
+compile_error!("One of the bson-2 and bson-3 features must be enabled.");
+
+#[cfg(feature = "bson-2")]
+use bson_2 as bson;
+
+#[cfg(feature = "bson-3")]
+use bson_3 as bson;
+
 /// Returns the version string for libmongocrypt.
 pub fn version() -> &'static str {
     let c_version = unsafe { CStr::from_ptr(sys::mongocrypt_version(ptr::null_mut())) };
@@ -253,7 +265,7 @@ impl CryptBuilder {
         unsafe {
             let ok = sys::mongocrypt_setopt_retry_kms(*self.inner.borrow(), enable);
             if !ok {
-                return Err(self.status().as_error())
+                return Err(self.status().as_error());
             }
         }
         Ok(self)
@@ -264,7 +276,7 @@ impl CryptBuilder {
         unsafe {
             let ok = sys::mongocrypt_setopt_key_expiration(*self.inner.borrow(), expiration_ms);
             if !ok {
-                return Err(self.status().as_error())
+                return Err(self.status().as_error());
             }
         }
         Ok(self)

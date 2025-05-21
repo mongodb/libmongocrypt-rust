@@ -1,6 +1,6 @@
 use std::ffi::CString;
 
-use bson::{Document, RawDocument};
+use crate::bson::{Document, RawDocument};
 use mongocrypt_sys as sys;
 
 use crate::{
