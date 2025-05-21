@@ -31,7 +31,7 @@ compile_error!("One of the bson-2 and bson-3 features must be enabled.");
 use bson_2 as bson;
 
 #[cfg(feature = "bson-3")]
-pub(crate) use bson_3 as bson;
+use bson_3 as bson;
 
 /// Returns the version string for libmongocrypt.
 pub fn version() -> &'static str {
