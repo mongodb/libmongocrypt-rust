@@ -21,13 +21,10 @@ pub use hooks::*;
 use native::OwnedPtr;
 use once_cell::sync::Lazy;
 
-#[cfg(all(feature = "bson-2", feature = "bson-3"))]
-compile_error!("Only one of the bson-2 and bson-3 features should be enabled.");
-
 #[cfg(not(any(feature = "bson-2", feature = "bson-3")))]
 compile_error!("One of the bson-2 and bson-3 features must be enabled.");
 
-#[cfg(feature = "bson-2")]
+#[cfg(all(feature = "bson-2", not(feature = "bson-3")))]
 use bson_2 as bson;
 
 #[cfg(feature = "bson-3")]
