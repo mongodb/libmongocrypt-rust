@@ -5,7 +5,7 @@ updates:
       - "/mongocrypt"
       - "/mongocrypt-sys"
     schedule:
-      interval: daily
+      interval: monthly
     # Only bump to the latest version compatible with the dependency's version
     # in Cargo.toml. This is the equivalent of running `cargo update`.
     versioning-strategy: lockfile-only
