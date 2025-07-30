@@ -10,11 +10,7 @@ use crate::{
 
 pub(crate) fn doc_binary(doc: &Document) -> Result<BinaryBuf> {
     let mut bytes = vec![];
-    #[cfg(all(feature = "bson-2", not(feature = "bson-3")))]
     doc.to_writer(&mut bytes)
-        .map_err(|e| error::internal!("failure serializing doc: {}", e))?;
-    #[cfg(feature = "bson-3")]
-    doc.encode_to_writer(&mut bytes)
         .map_err(|e| error::internal!("failure serializing doc: {}", e))?;
     Ok(BinaryBuf::new(bytes))
 }
@@ -51,11 +47,7 @@ pub(crate) fn str_bytes_len(s: &str) -> Result<(*const std::ffi::c_char, i32)> {
 }
 
 pub(crate) fn rawdoc_view(bytes: &[u8]) -> Result<&RawDocument> {
-    #[cfg(all(feature = "bson-2", not(feature = "bson-3")))]
-    let decode = RawDocument::from_bytes;
-    #[cfg(feature = "bson-3")]
-    let decode = RawDocument::decode_from_bytes;
-    decode(bytes).map_err(|e| error::internal!("document parse failure: {}", e))
+    RawDocument::from_bytes(bytes).map_err(|e| error::internal!("document parse failure: {}", e))
 }
 
 pub(crate) unsafe fn binary_bytes<'a>(binary: *mut sys::mongocrypt_binary_t) -> Result<&'a [u8]> {
