@@ -47,13 +47,13 @@ impl CtxBuilder {
     }
 
     /// Set the keyAltName to use for explicit encryption or
-    /// data key creation.   
+    /// data key creation.
     ///
     /// For explicit encryption, it is an error to set both the keyAltName
     /// and the key id.
     ///
     /// For creating data keys, call this function repeatedly to set
-    /// multiple keyAltNames.   
+    /// multiple keyAltNames.
     pub fn key_alt_name(self, key_alt_name: &str) -> Result<Self> {
         let mut bin: BinaryBuf = rawdoc! { "keyAltName": key_alt_name }.into();
         unsafe {
@@ -141,7 +141,7 @@ impl CtxBuilder {
     }
 
     /// Set key encryption key document for creating a data key or for rewrapping
-    /// datakeys.   
+    /// datakeys.
     ///
     /// The following forms are accepted:
     ///
