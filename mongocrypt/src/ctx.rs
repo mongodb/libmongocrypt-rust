@@ -254,6 +254,17 @@ impl CtxBuilder {
         Ok(self)
     }
 
+    /// Set options for explicit encryption with [`Algorithm::TextPreview`].
+    pub fn algorithm_text(self, options: Document) -> Result<Self> {
+        let mut bin = doc_binary(&options)?;
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_algorithm_text(*self.inner.borrow(), *bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self)
+    }
+
     fn into_ctx(self) -> Ctx {
         Ctx { inner: self.inner }
     }
@@ -412,6 +423,7 @@ pub enum Algorithm {
     #[deprecated]
     RangePreview,
     Range,
+    TextPreview,
 }
 
 impl Algorithm {
@@ -424,6 +436,7 @@ impl Algorithm {
             #[allow(deprecated)]
             Self::RangePreview => b"RangePreview\0",
             Self::Range => b"Range\0",
+            Self::TextPreview => b"TextPreview\0",
         };
         unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
     }
