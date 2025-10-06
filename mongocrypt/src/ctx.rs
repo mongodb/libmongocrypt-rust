@@ -47,13 +47,13 @@ impl CtxBuilder {
     }
 
     /// Set the keyAltName to use for explicit encryption or
-    /// data key creation.   
+    /// data key creation.
     ///
     /// For explicit encryption, it is an error to set both the keyAltName
     /// and the key id.
     ///
     /// For creating data keys, call this function repeatedly to set
-    /// multiple keyAltNames.   
+    /// multiple keyAltNames.
     pub fn key_alt_name(self, key_alt_name: &str) -> Result<Self> {
         let mut bin: BinaryBuf = rawdoc! { "keyAltName": key_alt_name }.into();
         unsafe {
@@ -141,7 +141,7 @@ impl CtxBuilder {
     }
 
     /// Set key encryption key document for creating a data key or for rewrapping
-    /// datakeys.   
+    /// datakeys.
     ///
     /// The following forms are accepted:
     ///
@@ -248,6 +248,17 @@ impl CtxBuilder {
         let mut bin = doc_binary(&options)?;
         unsafe {
             if !sys::mongocrypt_ctx_setopt_algorithm_range(*self.inner.borrow(), *bin.native()) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(self)
+    }
+
+    /// Set options for explicit encryption with [`Algorithm::TextPreview`].
+    pub fn algorithm_text(self, options: Document) -> Result<Self> {
+        let mut bin = doc_binary(&options)?;
+        unsafe {
+            if !sys::mongocrypt_ctx_setopt_algorithm_text(*self.inner.borrow(), *bin.native()) {
                 return Err(self.status().as_error());
             }
         }
@@ -412,6 +423,7 @@ pub enum Algorithm {
     #[deprecated]
     RangePreview,
     Range,
+    TextPreview,
 }
 
 impl Algorithm {
@@ -424,6 +436,7 @@ impl Algorithm {
             #[allow(deprecated)]
             Self::RangePreview => b"RangePreview\0",
             Self::Range => b"Range\0",
+            Self::TextPreview => b"TextPreview\0",
         };
         unsafe { CStr::from_bytes_with_nul_unchecked(bytes) }
     }
