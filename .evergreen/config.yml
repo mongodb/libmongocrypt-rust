@@ -125,25 +125,25 @@ tasks:
 buildvariants:
 - name: lint
   display_name: "Lint"
-  run_on: ubuntu1804-test
+  run_on: ubuntu2204-small
   expansions:
-    libmongocrypt_os: "ubuntu1804-64"
+    libmongocrypt_os: "ubuntu2204-64"
   tasks:
     - name: .lint
 
 - name: compile
   display_name: "Compile"
-  run_on: ubuntu1804-test
+  run_on: ubuntu2204-small
   expansions:
-    libmongocrypt_os: "ubuntu1804-64"
+    libmongocrypt_os: "ubuntu2204-64"
   tasks:
     - name: .compile
 
 - name: ubuntu
-  display_name: "Ubuntu 18.04"
-  run_on: ubuntu1804-test
+  display_name: "Ubuntu 22.04"
+  run_on: ubuntu2204-small
   expansions:
-    libmongocrypt_os: "ubuntu1804-64"
+    libmongocrypt_os: "ubuntu2204-64"
   tasks:
     # compilation on ubuntu is tested in the compile build variant
   - name: ".test"
