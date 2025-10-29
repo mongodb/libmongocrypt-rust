@@ -1,5 +1,5 @@
 {
-   suppression1
+   rust-2207
    Memcheck:Leak
    match-leak-kinds: possible
    fun:malloc
@@ -34,4 +34,21 @@
    fun:_ZN10mongocrypt4main17h49888e98372b2b9fE
    fun:_ZN4core3ops8function6FnOnce9call_once17h736e88a48a5b8013E
    fun:_ZN3std3sys9backtrace28__rust_begin_short_backtrace17hb765fa9f59e92257E
+}
+{
+   rust-2286
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   fun:_ZN3std6thread6Thread3new17h8e44ab4d766e586dE
+   fun:_ZN3std6thread7current12init_current17hb104b0c247fc82aaE
+   fun:_ZN3std4sync4mpmc7context7Context3new17h47d9636fcf8f7183E
+   fun:_ZN3std3sys12thread_local6native4lazy20Storage$LT$T$C$D$GT$16get_or_init_slow17h8fd546655723a928E
+   fun:_ZN3std4sync4mpmc4list16Channel$LT$T$GT$4recv17hb06ad8970db0c1f3E
+   fun:_ZN4test7console17run_tests_console17hf563dd670b651d8dE
+   fun:_ZN4test9test_main17heeb13d51b7ce9909E
+   fun:_ZN4test16test_main_static17hbe9b2121502b3e77E
+   fun:_ZN10mongocrypt4main*
+   fun:_ZN4core3ops8function6FnOnce9call_once*
+   fun:_ZN3std3sys9backtrace28__rust_begin_short_backtrace*
 }
