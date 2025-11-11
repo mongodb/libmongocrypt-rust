@@ -236,6 +236,15 @@ impl CryptBuilder {
         self
     }
 
+    /// Enable support for multiple collection schemas. Required to support $lookup.
+    pub fn enable_multiple_collinfo(self) -> Result<Self> {
+        let ok = unsafe { sys::mongocrypt_setopt_enable_multiple_collinfo(*self.inner.borrow()) };
+        if !ok {
+            return Err(self.status().as_error());
+        }
+        Ok(self)
+    }
+
     /// Opt-into skipping query analysis.
     ///
     /// If opted in:

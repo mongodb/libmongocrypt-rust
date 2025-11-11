@@ -533,7 +533,7 @@ impl Ctx {
     }
 
     /// Create a scope guard that provides handles to pending KMS requests.
-    pub fn kms_scope(&mut self) -> KmsScope {
+    pub fn kms_scope(&mut self) -> KmsScope<'_> {
         KmsScope { ctx: self }
     }
 
@@ -651,7 +651,7 @@ impl<'ctx> KmsScope<'ctx> {
     ///
     /// If KMS handles are being handled synchronously, the driver can reuse the same
     /// TLS socket to send HTTP requests and receive responses.
-    pub fn next_kms_ctx(&self) -> Option<KmsCtx> {
+    pub fn next_kms_ctx(&self) -> Option<KmsCtx<'_>> {
         let inner = unsafe { sys::mongocrypt_ctx_next_kms_ctx(*self.ctx.inner.borrow()) };
         if inner.is_null() {
             return None;
