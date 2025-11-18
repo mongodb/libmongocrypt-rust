@@ -52,3 +52,20 @@
    fun:_ZN4core3ops8function6FnOnce9call_once*
    fun:_ZN3std3sys9backtrace28__rust_begin_short_backtrace*
 }
+{
+   rust-2301
+   Memcheck:Leak
+   match-leak-kinds: possible
+   fun:malloc
+   fun:_ZN3std6thread6Thread3new17he81d12966881814bE
+   fun:_ZN3std6thread7current12init_current17ha85cd546c7a52d20E
+   fun:_ZN3std4sync4mpmc7context7Context3new17h1bd27598da9bd1ecE
+   fun:_ZN3std3sys12thread_local6native4lazy20Storage$LT$T$C$D$GT$16get_or_init_slow17h75602ce2090b40dcE
+   fun:_ZN3std4sync4mpmc4list16Channel$LT$T$GT$4recv17h017cc70879e5cd94E
+   fun:_ZN4test7console17run_tests_console17h9a01c47f32adb421E
+   fun:_ZN4test9test_main17h27d71609c5d00355E
+   fun:_ZN4test16test_main_static17h40a34d1d277dff12E
+   fun:_ZN10mongocrypt4main*
+   fun:_ZN4core3ops8function6FnOnce9call_once*
+   fun:_ZN3std3sys9backtrace28__rust_begin_short_backtrace*
+}
