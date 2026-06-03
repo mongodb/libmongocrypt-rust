@@ -746,6 +746,24 @@ impl<'scope> KmsCtx<'scope> {
         Ok(())
     }
 
+    /// Feed bytes from the HTTP response.  Returns `true` if the KMS request should be retried.
+    ///
+    /// Feeding more bytes than what has been returned in `bytes_needed` is an error.
+    pub fn feed_with_retry(&mut self, bytes: &[u8]) -> Result<bool> {
+        let bin = BinaryRef::new(bytes);
+        let mut retry = false;
+        unsafe {
+            if !sys::mongocrypt_kms_ctx_feed_with_retry(
+                self.inner,
+                *bin.native(),
+                &mut retry as *mut bool,
+            ) {
+                return Err(self.status().as_error());
+            }
+        }
+        Ok(retry)
+    }
+
     /// Get the KMS provider identifier associated with this KMS request.
     ///
     /// This is used to conditionally configure TLS connections based on the KMS

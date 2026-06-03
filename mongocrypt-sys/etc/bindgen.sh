@@ -2,6 +2,15 @@
 
 set -o errexit
 
+if ! command -v cmake > /dev/null 2>&1; then
+    echo 'cmake must be present in the path; see https://cmake.org/download/'
+    exit 1
+fi
+if ! command -v bindgen > /dev/null 2>&1; then
+    echo 'bindgen must be present in the path; see https://rust-lang.github.io/rust-bindgen/command-line-usage.html'
+    exit 1
+fi
+
 REPO_DIR=$(readlink -f $(dirname $0)/../..)
 BINDINGS_PATH=${REPO_DIR}/mongocrypt-sys/src/bindings.rs
 LIBMONGOCRYPT_DIR=${LIBMONGOCRYPT_DIR:-"${REPO_DIR}/../libmongocrypt"}
