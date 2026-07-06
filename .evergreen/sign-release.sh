@@ -37,6 +37,6 @@ docker run \
   -v $(pwd):$(pwd) \
   -w $(pwd) \
   artifactory.corp.mongodb.com/release-tools-container-registry-local/garasign-gpg \
-  /bin/bash -c "gpgloader && gpg --yes -v --armor -o ${CRATE}-${CRATE_VERSION}.sig --detach-sign target/package/${CRATE}-${CRATE_VERSION}.crate"
+  /bin/bash -c "gpgloader && gpg --yes -v --armor -o ${CRATE}-${CRATE_VERSION}.sig --detach-sign target/package/tmp-crate/${CRATE}-${CRATE_VERSION}.crate"
 
 rm signing-envfile
