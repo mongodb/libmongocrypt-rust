@@ -153,6 +153,7 @@ fn ctx_lifecycle() {
         assert!(mongocrypt_ctx_status(ctx, status));
         assert!(mongocrypt_status_ok(status));
 
+        mongocrypt_status_destroy(status);
         mongocrypt_ctx_destroy(ctx);
         mongocrypt_destroy(crypt);
     }
